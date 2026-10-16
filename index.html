@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Rainy Player</title>
+<title>Rainy: Audio player</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--bg:#0b0714;--card:#150f26d9;--ac:#a855f7;--ac2:#6d28d9;--tx:#efeaff;--mu:#8b7fb0;--ln:#ffffff14;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -207,7 +207,7 @@ i[data-i]{display:inline-flex}
 </style></head><body>
 <div id="wp" hidden></div><canvas id="rain"></canvas>
 <div id="app">
-  <div class="top"><h1>Rainy <span>Player</span></h1><button id="theme" data-i="palette"></button><button id="gear" data-i="sliders"></button></div>
+  <div class="top"><h1>Rainy: <span>Audio player</span></h1><button id="theme" data-i="palette"></button><button id="gear" data-i="sliders"></button></div>
   <div class="tabs"><button id="tS" class="on">Песни</button><button id="tP">Плейлисты</button></div>
   <div class="bar"><input id="file" type="file" accept="audio/*" multiple hidden><button id="newpl" hidden><i data-i="plus"></i> Плейлист</button></div>
   <div class="sr" id="qw"><i data-i="search"></i><input id="q" type="search" placeholder="Поиск по названию…"></div><div id="head"></div><div id="cnt"></div>
@@ -225,7 +225,7 @@ i[data-i]{display:inline-flex}
     <div class="tm"><span data-i="volume" style="display:flex"></span><input type="range" id="vol" min="0" max="1" step="0.01" value="1"></div>
   </div>
 </div></div>
-<div id="wel" hidden><div class="wc"><div class="wi" data-i="music"></div><h1>Rainy Player</h1>
+<div id="wel" hidden><div class="wc"><div class="wi" data-i="music"></div><h1>Rainy: Audio player</h1>
 <p>Все песни с телефона появятся сами, а новые файлы добавятся автоматически.</p>
 <p>Дождь, визуализатор, эквалайзер, свои темы, плейлисты и резервные копии.</p>
 <p>Сейчас Android попросит доступ к музыке. Он нужен, чтобы показать твои песни.</p>
@@ -319,7 +319,7 @@ function favRows(){document.querySelectorAll('#list .row').forEach(d=>{const f=d
 let bgOn=false,lastT=null,lastCov='';
 function bg(on){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B)return;if(on){if(!bgOn){B.start({});bgOn=true}bgu()}else{B.stop();bgOn=false}}catch(_){}}
 function bgu(){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B||!bgOn)return;const t=curT,cv=t&&t.cover||'';
- const o={title:t?t.name:'Rainy Player',artist:t&&t.artist||'',playing:!au.paused&&!au.ended,pos:Math.round((au.currentTime||0)*1000),dur:Math.round((isFinite(au.duration)?au.duration:0)*1000),fav:!!(t&&t.fav),lock:S.lock,lang:S.lang};
+ const o={title:t?t.name:'Rainy: Audio player',artist:t&&t.artist||'',playing:!au.paused&&!au.ended,pos:Math.round((au.currentTime||0)*1000),dur:Math.round((isFinite(au.duration)?au.duration:0)*1000),fav:!!(t&&t.fav),lock:S.lock,lang:S.lang};
  if(t!==lastT||cv!==lastCov){o.cover=cv?cv.split(',')[1]:'';lastT=t;lastCov=cv}
  B.update(o)}catch(_){}}
 function fx(){if(!gn)return;const L=S.xfLen,d=au.duration,c=au.currentTime;
@@ -333,7 +333,7 @@ function info(){const t=curT;favUi();setTimeout(bgu,0);
  $('#title').textContent=t?t.name:'Выбери трек';
  $('#sub').textContent=t?(t.artist||'Неизвестный исполнитель'):'Нажми на песню в списке';
  thumb($('#cov'),t||{});
- if('mediaSession'in navigator&&t&&S.lock)navigator.mediaSession.metadata=new MediaMetadata({title:t.name,artist:t.artist||'Rainy Player',artwork:t.cover?[{src:t.cover,sizes:'300x300',type:'image/jpeg'}]:[]})}
+ if('mediaSession'in navigator&&t&&S.lock)navigator.mediaSession.metadata=new MediaMetadata({title:t.name,artist:t.artist||'Rainy: Audio player',artwork:t.cover?[{src:t.cover,sizes:'300x300',type:'image/jpeg'}]:[]})}
 async function play(t,list){
  if(list)q=list;qi=q.indexOf(t);curT=t;t.plays=(t.plays||0)+1;t._fb=false;
  clearTimeout(window._sv);window._sv=setTimeout(()=>saveT(t),2000);
@@ -586,7 +586,7 @@ function openSet(which,back){
  {const rb=document.createElement('button');rb.className='it';rb.innerHTML=ic('music')+'<span></span>';
   const cnt=()=>'Найдено на устройстве: '+tracks.filter(t=>t.dev).length;
   rb.lastChild.textContent='Обновить список с устройства';
-  rb.onclick=async()=>{rb.lastChild.textContent='Ищу…';await syncLib(true);rb.lastChild.textContent=devErr?'Нет доступа к музыке. Разреши в настройках телефона: Приложения → Rainy Player → Разрешения':cnt()};cur.append(rb)}
+  rb.onclick=async()=>{rb.lastChild.textContent='Ищу…';await syncLib(true);rb.lastChild.textContent=devErr?'Нет доступа к музыке. Разреши в настройках телефона: Приложения → Rainy: Audio player → Разрешения':cnt()};cur.append(rb)}
  const hb=document.createElement('button');hb.className='it';hb.innerHTML=ic('eyeoff')+'<span></span>';
  hb.lastChild.textContent='Скрытая музыка ('+tracks.filter(t=>t.hidden).length+')';hb.onclick=openHidden;cur.append(hb);
  const rs=btn('Сбросить статистику прослушиваний',()=>{closeM();sheet('Сбросить статистику?',[['Да, сбросить',async()=>{for(const t of tracks){t.plays=0;await saveT(t)}render()},'trash']])});
@@ -820,7 +820,7 @@ const DICT=new Map(`Песни|Songs
 Файлы короче этого времени скрываются (минимум 1 секунда)|Files shorter than this are hidden (minimum 1 second)
 Обновить список с устройства|Refresh list from device
 Ищу…|Scanning…
-Нет доступа к музыке. Разреши в настройках телефона: Приложения → Rainy Player → Разрешения|No access to music. Allow it in phone settings: Apps → Rainy Player → Permissions
+Нет доступа к музыке. Разреши в настройках телефона: Приложения → Rainy: Audio player → Разрешения|No access to music. Allow it in phone settings: Apps → Rainy: Audio player → Permissions
 Сбросить статистику прослушиваний|Reset play statistics
 Скрытая музыка|Hidden music
 Включён|Enabled
