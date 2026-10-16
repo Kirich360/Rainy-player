@@ -225,6 +225,7 @@ jobs:
               PlayerService.EN = "en".equals(c.getString("lang", "ru"));
               PlayerService.POS = (long) (double) c.getDouble("pos", 0.0);
               PlayerService.DUR = (long) (double) c.getDouble("dur", 0.0);
+              PlayerService.SPD = (float) (double) c.getDouble("spd", 1.0);
               if (c.hasOption("cover")) {
                 PlayerService.ART = null;
                 String s = c.getString("cover", "");
@@ -261,6 +262,7 @@ jobs:
             static String T = "Rainy: Audio player", A = "";
             static boolean P = false, F = false, L = true, EN = false;
             static long POS = 0, DUR = 0;
+            static float SPD = 1f;
             static Bitmap ART = null;
             private PowerManager.WakeLock wl;
             private MediaSession ms;
@@ -295,7 +297,7 @@ jobs:
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
                   .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off).build())
-                  .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? 1f : 0f, SystemClock.elapsedRealtime()).build());
+                  .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build());
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
                 Intent o = new Intent(this, MainActivity.class);
                 o.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
