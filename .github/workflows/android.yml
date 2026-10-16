@@ -222,6 +222,7 @@ jobs:
               PlayerService.P = Boolean.TRUE.equals(c.getBoolean("playing", false));
               PlayerService.F = Boolean.TRUE.equals(c.getBoolean("fav", false));
               PlayerService.L = !Boolean.FALSE.equals(c.getBoolean("lock", true));
+              PlayerService.EN = "en".equals(c.getString("lang", "ru"));
               PlayerService.POS = (long) (double) c.getDouble("pos", 0.0);
               PlayerService.DUR = (long) (double) c.getDouble("dur", 0.0);
               if (c.hasOption("cover")) {
@@ -258,7 +259,7 @@ jobs:
           public class PlayerService extends Service {
             static PlayerService S;
             static String T = "Rainy Player", A = "";
-            static boolean P = false, F = false, L = true;
+            static boolean P = false, F = false, L = true, EN = false;
             static long POS = 0, DUR = 0;
             static Bitmap ART = null;
             private PowerManager.WakeLock wl;
@@ -279,7 +280,7 @@ jobs:
               });
               ms.setActive(true);
               if (Build.VERSION.SDK_INT >= 26)
-                getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("rp", "Воспроизведение", NotificationManager.IMPORTANCE_LOW));
+                getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("rp", java.util.Locale.getDefault().getLanguage().equals("ru") ? "Воспроизведение" : "Playback", NotificationManager.IMPORTANCE_LOW));
             }
             private Notification.Action act(String a, int icon, String label) {
               PendingIntent pi = PendingIntent.getService(this, a.hashCode(), new Intent(this, PlayerService.class).setAction(a), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
@@ -293,7 +294,7 @@ jobs:
                 ms.setMetadata(m.build());
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
-                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? "Убрать из избранного" : "В избранное", F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off).build())
+                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off).build())
                   .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? 1f : 0f, SystemClock.elapsedRealtime()).build());
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
                 Intent o = new Intent(this, MainActivity.class);
@@ -301,10 +302,10 @@ jobs:
                 b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(A.isEmpty() ? "Rainy Player" : A)
                  .setOngoing(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
                  .setContentIntent(PendingIntent.getActivity(this, 0, o, PendingIntent.FLAG_IMMUTABLE))
-                 .addAction(act("prev", android.R.drawable.ic_media_previous, "Назад"))
-                 .addAction(act("toggle", P ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, P ? "Пауза" : "Играть"))
-                 .addAction(act("next", android.R.drawable.ic_media_next, "Дальше"))
-                 .addAction(act("fav", F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off, "Избранное"))
+                 .addAction(act("prev", android.R.drawable.ic_media_previous, EN ? "Previous" : "Назад"))
+                 .addAction(act("toggle", P ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, P ? (EN ? "Pause" : "Пауза") : (EN ? "Play" : "Играть")))
+                 .addAction(act("next", android.R.drawable.ic_media_next, EN ? "Next" : "Дальше"))
+                 .addAction(act("fav", F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off, EN ? "Favorite" : "Избранное"))
                  .setStyle(new Notification.MediaStyle().setMediaSession(ms.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
                 if (ART != null) b.setLargeIcon(ART);
                 Notification n = b.build();
