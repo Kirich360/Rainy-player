@@ -36,8 +36,13 @@ jobs:
           cat > $D/MainActivity.java <<'EOF'
           package com.rainy.player;
           import android.os.Bundle;
+          import androidx.activity.result.ActivityResultLauncher;
+          import androidx.activity.result.IntentSenderRequest;
+          import androidx.activity.result.contract.ActivityResultContracts;
           import com.getcapacitor.BridgeActivity;
           public class MainActivity extends BridgeActivity {
+            public ActivityResultLauncher<IntentSenderRequest> delL = registerForActivityResult(
+              new ActivityResultContracts.StartIntentSenderForResult(), r -> BgPlugin.deleted(r.getResultCode() == RESULT_OK));
             @Override public void onCreate(Bundle b) {
               registerPlugin(BgPlugin.class);
               super.onCreate(b);
@@ -53,6 +58,13 @@ jobs:
           cat > $D/BgPlugin.java <<'EOF'
           package com.rainy.player;
           import android.Manifest;
+          import android.app.PendingIntent;
+          import android.graphics.Bitmap;
+          import android.media.MediaMetadataRetriever;
+          import androidx.activity.result.IntentSenderRequest;
+          import java.io.ByteArrayOutputStream;
+          import java.util.ArrayList;
+          import java.util.List;
           import android.content.*;
           import android.content.pm.PackageManager;
           import android.database.ContentObserver;
@@ -82,6 +94,12 @@ jobs:
           })
           public class BgPlugin extends Plugin {
             static BgPlugin I;
+            static void deleted(boolean ok) {
+              if (I == null) return;
+              JSObject o = new JSObject();
+              o.put("ok", ok);
+              I.notifyListeners("deleted", o);
+            }
             private boolean obs = false;
             static void emit(String a, long p) {
               if (I == null) return;
@@ -108,9 +126,13 @@ jobs:
               try {
                 JSArray arr = new JSArray();
                 Uri u = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-                String[] pr = {MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DISPLAY_NAME};
+                String[] pr = {MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATE_ADDED};
                 String sel = MediaStore.Audio.Media.IS_RINGTONE + "=0 AND " + MediaStore.Audio.Media.IS_NOTIFICATION + "=0 AND " + MediaStore.Audio.Media.IS_ALARM + "=0";
-                Cursor cu = getContext().getContentResolver().query(u, pr, sel, null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
+                if (Build.VERSION.SDK_INT >= 29) {
+                  String rp = MediaStore.Audio.Media.RELATIVE_PATH;
+                  sel += " AND (" + rp + " IS NULL OR (" + rp + " NOT LIKE '%Recordings%' AND " + rp + " NOT LIKE '%Voice%' AND " + rp + " NOT LIKE 'Android/%'))";
+                }
+                Cursor cu = getContext().getContentResolver().query(u, pr, sel, null, MediaStore.Audio.Media.DATE_ADDED + " DESC");
                 if (cu != null) {
                   while (cu.moveToNext()) {
                     JSObject o = new JSObject();
@@ -122,6 +144,7 @@ jobs:
                     o.put("artist", "<unknown>".equals(ar) ? "" : ar);
                     o.put("dur", cu.getLong(3));
                     o.put("file", cu.getString(4));
+                    o.put("added", cu.getLong(5));
                     arr.put(o);
                   }
                   cu.close();
@@ -134,7 +157,50 @@ jobs:
                 }
                 JSObject r = new JSObject();
                 r.put("items", arr);
+                r.put("sdk", Build.VERSION.SDK_INT);
                 call.resolve(r);
+              } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
+            }
+            @PluginMethod public void art(PluginCall call) {
+              JSObject res = new JSObject();
+              res.put("data", "");
+              MediaMetadataRetriever r = new MediaMetadataRetriever();
+              try {
+                int size = call.getInt("size", 160);
+                r.setDataSource(getContext(), Uri.parse(call.getString("uri", "")));
+                byte[] b = r.getEmbeddedPicture();
+                if (b != null) {
+                  android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                  o.inJustDecodeBounds = true;
+                  BitmapFactory.decodeByteArray(b, 0, b.length, o);
+                  int s = 1;
+                  while (o.outWidth / (s * 2) >= size && o.outHeight / (s * 2) >= size) s *= 2;
+                  o = new android.graphics.BitmapFactory.Options();
+                  o.inSampleSize = s;
+                  Bitmap bm = BitmapFactory.decodeByteArray(b, 0, b.length, o);
+                  if (bm != null) {
+                    int m = Math.min(bm.getWidth(), bm.getHeight());
+                    Bitmap sq = Bitmap.createBitmap(bm, (bm.getWidth() - m) / 2, (bm.getHeight() - m) / 2, m, m);
+                    int t = Math.min(size, m);
+                    Bitmap out = Bitmap.createScaledBitmap(sq, t, t, true);
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    out.compress(Bitmap.CompressFormat.JPEG, 78, bo);
+                    res.put("data", Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP));
+                  }
+                }
+              } catch (Exception e) {}
+              try { r.release(); } catch (Exception e) {}
+              call.resolve(res);
+            }
+            @PluginMethod public void remove(PluginCall call) {
+              try {
+                if (Build.VERSION.SDK_INT < 30) { call.reject("sdk"); return; }
+                JSArray a = call.getArray("uris");
+                List<Uri> us = new ArrayList<>();
+                for (int i = 0; i < a.length(); i++) us.add(Uri.parse(a.getString(i)));
+                PendingIntent pi = MediaStore.createDeleteRequest(getContext().getContentResolver(), us);
+                ((MainActivity) getActivity()).delL.launch(new IntentSenderRequest.Builder(pi.getIntentSender()).build());
+                call.resolve();
               } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
             }
             @PluginMethod public void notif(PluginCall call) {
