@@ -22,7 +22,7 @@ jobs:
           npm init -y
           npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/app@6 @capacitor/filesystem@6 @capacitor/share@6 jszip@3.10.1
           cp node_modules/jszip/dist/jszip.min.js www/jszip.min.js
-          npx cap init "Rainy Player" com.rainy.player --web-dir www
+          npx cap init "Rainy: Audio player" com.rainy.player --web-dir www
           python3 - <<'PY'
           import json
           c=json.load(open('capacitor.config.json'))
@@ -217,7 +217,7 @@ jobs:
               call.resolve();
             }
             @PluginMethod public void update(PluginCall c) {
-              PlayerService.T = c.getString("title", "Rainy Player");
+              PlayerService.T = c.getString("title", "Rainy: Audio player");
               PlayerService.A = c.getString("artist", "");
               PlayerService.P = Boolean.TRUE.equals(c.getBoolean("playing", false));
               PlayerService.F = Boolean.TRUE.equals(c.getBoolean("fav", false));
@@ -258,7 +258,7 @@ jobs:
           import android.os.*;
           public class PlayerService extends Service {
             static PlayerService S;
-            static String T = "Rainy Player", A = "";
+            static String T = "Rainy: Audio player", A = "";
             static boolean P = false, F = false, L = true, EN = false;
             static long POS = 0, DUR = 0;
             static Bitmap ART = null;
@@ -299,7 +299,7 @@ jobs:
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
                 Intent o = new Intent(this, MainActivity.class);
                 o.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(A.isEmpty() ? "Rainy Player" : A)
+                b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(A.isEmpty() ? "Rainy: Audio player" : A)
                  .setOngoing(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
                  .setContentIntent(PendingIntent.getActivity(this, 0, o, PendingIntent.FLAG_IMMUTABLE))
                  .addAction(act("prev", android.R.drawable.ic_media_previous, EN ? "Previous" : "Назад"))
@@ -340,6 +340,42 @@ jobs:
           PY
           sed -i 's/minSdkVersion = 22/minSdkVersion = 23/' android/variables.gradle
           npx cap sync android
+      - name: App icon
+        run: |
+          if [ -f icon.png ]; then
+          pip install pillow
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          import os, glob
+          im = Image.open('icon.png').convert('RGBA')
+          w, h = im.size
+          m = min(w, h)
+          l = (w - m) // 2
+          t = (h - m) // 2
+          im = im.crop((l, t, l + m, t + m))
+          res = 'android/app/src/main/res'
+          for f in glob.glob(res + '/mipmap-*/ic_launcher*.webp'):
+              os.remove(f)
+          for d, k in {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}.items():
+              p = res + '/mipmap-' + d
+              os.makedirs(p, exist_ok=True)
+              s = int(48 * k)
+              a = im.resize((s, s), Image.LANCZOS)
+              a.save(p + '/ic_launcher.png')
+              mk = Image.new('L', (s, s), 0)
+              ImageDraw.Draw(mk).ellipse((0, 0, s - 1, s - 1), fill=255)
+              r = Image.new('RGBA', (s, s), (0, 0, 0, 0))
+              r.paste(a, (0, 0), mk)
+              r.save(p + '/ic_launcher_round.png')
+              b = int(108 * k)
+              im.resize((b, b), Image.LANCZOS).save(p + '/rayni_bg.png')
+              Image.new('RGBA', (b, b), (0, 0, 0, 0)).save(p + '/rayni_fg.png')
+          x = '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n<background android:drawable="@mipmap/rayni_bg"/>\n<foreground android:drawable="@mipmap/rayni_fg"/>\n</adaptive-icon>\n'
+          os.makedirs(res + '/mipmap-anydpi-v26', exist_ok=True)
+          for n in ('ic_launcher', 'ic_launcher_round'):
+              open(res + '/mipmap-anydpi-v26/' + n + '.xml', 'w').write(x)
+          PY
+          fi
       - name: Build debug APK
         working-directory: android
         run: |
