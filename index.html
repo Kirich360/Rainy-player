@@ -257,7 +257,12 @@ i[data-i]{display:inline-flex}
 input[type=search]{-webkit-appearance:none;appearance:none}
 input[type=search]::-webkit-search-decoration,input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
 #q,#q2,#bx input:not([type=file]):not([type=range]):not([type=color]){outline:none;transition:border-color .25s,box-shadow .25s}
-#q:focus,#q2:focus,#bx input:not([type=file]):not([type=range]):not([type=color]):focus{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac2);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 35%,transparent)}
+#q:focus,#q2:focus,#bx input:not([type=file]):not([type=range]):not([type=color]):focus{border-color:var(--ac);box-shadow:inset 0 0 12px var(--ac2);box-shadow:inset 0 0 14px color-mix(in srgb,var(--ac) 28%,transparent)}
+#q,#q2{height:46px;padding:0 16px 0 44px;border-radius:16px;border:1px solid var(--ln);background:var(--card);font-size:15px;box-shadow:none}
+#q:focus,#q2:focus{background:var(--card);background:color-mix(in srgb,var(--ac) 7%,var(--card))}
+#q::placeholder,#q2::placeholder{color:var(--mu);opacity:.85}
+.sr i{left:15px;transition:color .25s}
+.sr:focus-within i{color:var(--ac)}
 </style></head><body>
 <div id="wp" hidden></div><div id="rain"><div class="rl" id="rl1"></div><div class="rl" id="rl2"></div></div>
 <div id="app">
