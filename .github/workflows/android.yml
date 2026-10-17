@@ -33,6 +33,13 @@ jobs:
       - name: Android patch (service, permissions)
         run: |
           D=android/app/src/main/java/com/rainy/player
+          mkdir -p android/app/src/main/res/drawable
+          cat > android/app/src/main/res/drawable/ic_heart_off.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"/></vector>
+          EOF
+          cat > android/app/src/main/res/drawable/ic_heart_on.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF3B30" android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"/></vector>
+          EOF
           cat > $D/MainActivity.java <<'EOF'
           package com.rainy.player;
           import android.os.Bundle;
@@ -266,7 +273,19 @@ jobs:
             static Bitmap ART = null;
             private PowerManager.WakeLock wl;
             private MediaSession ms;
+            private Notification.Builder nb;
+            private long stamp = 0;
+            private final Handler hd = new Handler(Looper.getMainLooper());
+            private final Runnable tk = new Runnable() {
+              @Override public void run() {
+                if (P && nb != null) { upd(); hd.postDelayed(this, 1000); }
+              }
+            };
             static void push() { if (S != null) S.apply(); }
+            private static String fmt(long ms) {
+              long s = Math.max(0, ms) / 1000;
+              return (s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60);
+            }
             @Override public IBinder onBind(Intent i) { return null; }
             @Override public void onCreate() {
               super.onCreate();
@@ -288,33 +307,54 @@ jobs:
               PendingIntent pi = PendingIntent.getService(this, a.hashCode(), new Intent(this, PlayerService.class).setAction(a), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
               return new Notification.Action.Builder(Icon.createWithResource(this, icon), label, pi).build();
             }
+            private void upd() {
+              long pos = POS + (P ? (long) ((SystemClock.elapsedRealtime() - stamp) * SPD) : 0);
+              if (DUR > 0) {
+                pos = Math.max(0, Math.min(DUR, pos));
+                nb.setProgress((int) DUR, (int) pos, false);
+                nb.setSubText(fmt(pos) + " / " + fmt(DUR));
+              } else {
+                nb.setProgress(0, 0, false);
+                nb.setSubText(null);
+              }
+              getSystemService(NotificationManager.class).notify(1, nb.build());
+            }
             void apply() {
               try {
                 MediaMetadata.Builder m = new MediaMetadata.Builder()
                   .putString(MediaMetadata.METADATA_KEY_TITLE, T).putString(MediaMetadata.METADATA_KEY_ARTIST, A).putLong(MediaMetadata.METADATA_KEY_DURATION, DUR);
                 if (ART != null) m.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, ART);
                 ms.setMetadata(m.build());
+                int heart = F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off;
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
-                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off).build())
+                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), heart).build())
                   .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build());
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
                 Intent o = new Intent(this, MainActivity.class);
                 o.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                 b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(A.isEmpty() ? "Rainy: Audio player" : A)
-                 .setOngoing(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
+                 .setOngoing(true).setOnlyAlertOnce(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
                  .setContentIntent(PendingIntent.getActivity(this, 0, o, PendingIntent.FLAG_IMMUTABLE))
                  .addAction(act("prev", android.R.drawable.ic_media_previous, EN ? "Previous" : "Назад"))
                  .addAction(act("toggle", P ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, P ? (EN ? "Pause" : "Пауза") : (EN ? "Play" : "Играть")))
                  .addAction(act("next", android.R.drawable.ic_media_next, EN ? "Next" : "Дальше"))
-                 .addAction(act("fav", F ? android.R.drawable.btn_star_big_on : android.R.drawable.btn_star_big_off, EN ? "Favorite" : "Избранное"))
+                 .addAction(act("fav", heart, EN ? "Favorite" : "Избранное"))
                  .setStyle(new Notification.MediaStyle().setMediaSession(ms.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
                 if (ART != null) b.setLargeIcon(ART);
+                nb = b;
+                stamp = SystemClock.elapsedRealtime();
+                if (DUR > 0) {
+                  b.setProgress((int) DUR, (int) Math.min(DUR, POS), false);
+                  b.setSubText(fmt(POS) + " / " + fmt(DUR));
+                }
                 Notification n = b.build();
                 if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
                 if (wl == null) wl = ((PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rainy:play");
                 if (P && !wl.isHeld()) wl.acquire();
                 if (!P && wl.isHeld()) wl.release();
+                hd.removeCallbacks(tk);
+                if (P) hd.postDelayed(tk, 1000);
               } catch (Exception e) {}
             }
             @Override public int onStartCommand(Intent i, int f, int id) {
@@ -325,6 +365,7 @@ jobs:
             }
             @Override public void onTaskRemoved(Intent i) { stopSelf(); }
             @Override public void onDestroy() {
+              hd.removeCallbacks(tk);
               if (wl != null && wl.isHeld()) wl.release();
               ms.release();
               S = null;
