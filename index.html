@@ -391,7 +391,7 @@ function bgu(){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B||
  const o={title:t?t.name:'Rainy: Audio player',artist:t&&t.artist||'',playing:!au.paused&&!au.ended,pos:Math.round((au.currentTime||0)*1000),dur:Math.round((isFinite(au.duration)?au.duration:0)*1000),fav:!!(t&&t.fav),lock:S.lock,lang:S.lang,spd:au.playbackRate};
  if(t!==lastT||cv!==lastCov){o.cover=cv?cv.split(',')[1]:'';lastT=t;lastCov=cv}
  B.update(o)}catch(_){}}
-function fx(){if(!gn)return;const L=S.xfLen,d=au.duration,c=au.currentTime;
+function fx(){if(document.hidden&&duck<1)duck=1;if(!gn)return;const L=S.xfLen,d=au.duration,c=au.currentTime;
  gn.gain.value=(S.xf&&d&&!au.paused?Math.max(0,Math.min(1,(d-c)/L,c/L)):1)*duck}
 function initAudio(){if(ac)return;try{ac=new(window.AudioContext||window.webkitAudioContext)();an=ac.createAnalyser();an.fftSize=128;fd=new Uint8Array(an.frequencyBinCount);
  const s=ac.createMediaElementSource(au);gn=ac.createGain();s.connect(gn);let pn=gn;eqF=[60,230,910,3600,14000].map((fr,i)=>{const f=ac.createBiquadFilter();f.type=i==0?'lowshelf':i==4?'highshelf':'peaking';f.frequency.value=fr;f.Q.value=1;pn.connect(f);pn=f;return f});pn.connect(an);an.connect(ac.destination);applyEq()}catch(_){an=null}}
@@ -415,7 +415,7 @@ async function play(t,list){
  if(gn&&!au.paused&&!au.ended&&au.currentSrc){await new Promise(r=>fadeDuck(0,F,r));if(tok!==seekTok)return}
  if(url){URL.revokeObjectURL(url);url=null}
  if(t.blob){url=URL.createObjectURL(t.blob);au.src=url}else au.src=Capacitor.convertFileSrc(t.uri);
- initAudio();duck=0;fx();
+ initAudio();duck=document.hidden?1:0;fx();
  try{if(ac)await ac.resume();await au.play()}catch(_){}
  if(tok===seekTok)fadeDuck(1,F);
  if(t.dev&&t.cq!==9&&t.cq!==2&&t.cq!==-1)hq(t)}
@@ -504,9 +504,13 @@ function openThemePop(a){
 function skIc(c){return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(c?'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>')+'<text x="12" y="15.4" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none">'+S.seekStep+'</text></svg>'}
 function seekUi(){$('#sbk').innerHTML=skIc(0);$('#sfw').innerHTML=skIc(1)}
 let duck=1,uiHold=false,seekTok=0,seekTgt=null;
-function fadeDuck(to,ms,done){const from=duck,t0=performance.now(),tok=seekTok;
- const f=n=>{if(tok!==seekTok)return;const k=Math.min(1,(n-t0)/ms);duck=from+(to-from)*k;fx();if(k<1)requestAnimationFrame(f);else if(done)done()};
- requestAnimationFrame(f)}
+function fadeDuck(to,ms,done){
+ const from=duck,t0=performance.now(),tok=seekTok;let fin=false;
+ const end=()=>{if(fin||tok!==seekTok)return;fin=true;duck=to;fx();if(done)done()};
+ if(document.hidden||ms<=0){end();return}
+ const f=n=>{if(fin||tok!==seekTok)return;const k=Math.min(1,(n-t0)/ms);duck=from+(to-from)*k;fx();if(k<1)requestAnimationFrame(f);else end()};
+ requestAnimationFrame(f);
+ setTimeout(end,ms+150)}
 function seekBy(d){
  const D=au.duration;if(!D)return;
  const cur=seekTgt!==null?seekTgt:au.currentTime,tgt=Math.max(0,Math.min(D,cur+d*S.seekStep)),tok=++seekTok;
