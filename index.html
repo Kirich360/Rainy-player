@@ -251,8 +251,15 @@ i[data-i]{display:inline-flex}
 #pager{contain:layout paint}
 .pg{contain:layout style}
 .chip,.sw i{transition:border-color .3s,transform .2s}
+#rain{overflow:hidden;pointer-events:none}
+.rl{position:absolute;left:0;top:0;width:100%;height:200%;background-repeat:repeat-y;background-size:100% 50%;will-change:transform}
+.sep{height:1px;background:var(--ln);margin:16px 0 6px}
+input[type=search]{-webkit-appearance:none;appearance:none}
+input[type=search]::-webkit-search-decoration,input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+#q,#q2,#bx input:not([type=file]):not([type=range]):not([type=color]){outline:none;transition:border-color .25s,box-shadow .25s}
+#q:focus,#q2:focus,#bx input:not([type=file]):not([type=range]):not([type=color]):focus{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac2);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 35%,transparent)}
 </style></head><body>
-<div id="wp" hidden></div><canvas id="rain"></canvas>
+<div id="wp" hidden></div><div id="rain"><div class="rl" id="rl1"></div><div class="rl" id="rl2"></div></div>
 <div id="app">
   <div class="top"><h1>Rainy: <span>Audio player</span></h1><button id="theme" data-i="palette"></button><button id="gear" data-i="sliders"></button></div>
   <div class="tabs"><button id="tS" class="on">Песни</button><button id="tP">Плейлисты</button></div>
@@ -325,37 +332,46 @@ const fmt=s=>isFinite(s)?Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(
 
 /* темы */
 const themes=['purple','blue','rose','custom'];let ti=Math.max(0,themes.indexOf(LS.g('theme')));
-function applyTheme(){applyCust();document.documentElement.dataset.theme=themes[ti];LS.s('theme',themes[ti]);setTimeout(()=>{const c=getComputedStyle(document.documentElement).getPropertyValue('--ac').trim();const n=parseInt(c.slice(1),16);rgb=[n>>16,n>>8&255,n&255];acc=c},0)}
+function applyTheme(){applyCust();document.documentElement.dataset.theme=themes[ti];LS.s('theme',themes[ti]);setTimeout(()=>{const c=getComputedStyle(document.documentElement).getPropertyValue('--ac').trim();const n=parseInt(c.slice(1),16);rgb=[n>>16,n>>8&255,n&255];acc=c;rebuildRain()},0)}
 let rgb=[168,85,247],acc='#a855f7';
 $('#theme').onclick=e=>openThemePop(e.currentTarget);
 
 /* дождь + визуализатор */
-const rc=$('#rain'),rx=rc.getContext('2d'),vc=$('#vis'),vx=vc.getContext('2d');let W,H,drops=[];
-function resize(){const d=Math.min(devicePixelRatio||1,1.5);W=rc.width=innerWidth*d;H=rc.height=innerHeight*d;vc.width=vc.clientWidth*d;vc.height=vc.clientHeight*d;
- drops=Array.from({length:Math.floor(innerWidth/4*S.rainAmt/60)},()=>({x:Math.random()*W,y:Math.random()*H,l:(10+Math.random()*20)*d,v:(5+Math.random()*7)*d}))}
-function sizeVis(){const d=devicePixelRatio||1;vc.width=vc.clientWidth*d;vc.height=vc.clientHeight*d}
+const vc=$('#vis'),vx=vc.getContext('2d'),rl1=$('#rl1'),rl2=$('#rl2');
+let rainPos=[0,0],rainH=800,lvCur=0,lastF=0,lastR=0;
+function doRain(){
+ const w=innerWidth,h=innerHeight,sc=w*h>2e6?.5:1,n=S.rainN;rainH=h;
+ [['rl1',.9,.28,12,10],['rl2',1.3,.42,22,16]].forEach(([id,lw,al,l0,lr])=>{
+  const c=document.createElement('canvas');c.width=Math.round(w*sc);c.height=Math.round(h*sc);const x=c.getContext('2d');
+  x.scale(sc,sc);x.strokeStyle='rgba('+rgb+','+al+')';x.lineWidth=lw;x.beginPath();
+  for(let i=0,k=Math.round(n/2);i<k;i++){const px=Math.random()*w,py=Math.random()*h,l=l0+Math.random()*lr,dx=l*.1;
+   x.moveTo(px,py);x.lineTo(px-dx,py+l);if(py+l>h){x.moveTo(px,py-h);x.lineTo(px-dx,py+l-h)}}
+  x.stroke();$('#'+id).style.backgroundImage='url('+c.toDataURL('image/png')+')'})}
+function rebuildRain(){clearTimeout(window._rb);window._rb=setTimeout(doRain,120)}
+function sizeVis(){const d=Math.min(devicePixelRatio||1,1.5);vc.width=vc.clientWidth*d;vc.height=vc.clientHeight*d}
+function resize(){sizeVis();rebuildRain()}
 addEventListener('resize',resize);
-let lastF=0;
 function loop(ts){
  requestAnimationFrame(loop);
- const IV=S.eco?50:33;
- if(document.hidden||ts-lastF<IV||(S.eco&&window._anim))return;lastF=ts;
+ if(document.hidden)return;
+ const eco=S.eco;
+ if(S.rain&&!(eco&&window._anim)&&(!eco||ts-lastR>=50)){
+  const dt=Math.min(.1,(ts-lastR)/1000||0);lastR=ts;
+  const sp=(S.rainAmt/60)*(1+(S.react?lvCur*2.5:0));
+  rainPos[0]=(rainPos[0]+dt*380*sp)%rainH;rainPos[1]=(rainPos[1]+dt*640*sp)%rainH;
+  rl1.style.transform='translate3d(0,'+(rainPos[0]-rainH)+'px,0)';rl2.style.transform='translate3d(0,'+(rainPos[1]-rainH)+'px,0)'}
+ if(ts-lastF<(eco?50:33)||(eco&&window._anim))return;lastF=ts;
  fx();
  const fpv=!$('#fp').hidden&&S.vis&&vc.width>0,pl=an&&!au.paused;
  let lv=0;
  if(pl&&(fpv||S.react)){an.getByteFrequencyData(fd);let sm=0;for(let i=0;i<28;i++)sm+=fd[i]/255;lv=sm/28*.8}
+ lvCur=lvCur*.7+lv*.3;
  if(fpv){
   vx.clearRect(0,0,vc.width,vc.height);
   const g=vx.createLinearGradient(0,vc.height,0,0);g.addColorStop(0,'rgba('+rgb+',.25)');g.addColorStop(1,acc);vx.fillStyle=g;
   const M=28,bw=vc.width/(M*2),cx=vc.width/2,cy=vc.height/2;
   if(pl){for(let i=0;i<M;i++){const h=Math.max(4,fd[i]/255*vc.height*.95);vx.fillRect(cx+i*bw+1.5,cy-h/2,bw-3,h);vx.fillRect(cx-(i+1)*bw+1.5,cy-h/2,bw-3,h)}}
-  else{for(let i=0;i<M*2;i++)vx.fillRect(i*bw+1.5,cy-2,bw-3,4)}}
- rx.clearRect(0,0,W,H);
- if(!S.rain)return;
- rx.strokeStyle='rgba('+rgb+',.35)';rx.lineWidth=1.2;rx.beginPath();
- const sp=(1+(S.react?lv*2.5:0))*IV/16.7;
- for(let k=0;k<drops.length;k+=S.eco?2:1){const d=drops[k];d.y+=d.v*sp;if(d.y>H){d.y=-d.l;d.x=Math.random()*W}rx.moveTo(d.x,d.y);rx.lineTo(d.x-d.l*.1,d.y+d.l)}
- rx.stroke()}
+  else{for(let i=0;i<M*2;i++)vx.fillRect(i*bw+1.5,cy-2,bw-3,4)}}}
 
 /* аудио */
 let gn,eqF=[],lastSv=0,q=[],qi=-1,curT=null,view='songs',openId=null,query='',query2='',pls=[];
@@ -389,10 +405,14 @@ function info(){const t=curT;favUi();miniNb();setTimeout(bgu,0);
 async function play(t,list){
  if(list)q=list;qi=q.indexOf(t);curT=t;t.plays=(t.plays||0)+1;t._fb=false;
  clearTimeout(window._sv);window._sv=setTimeout(()=>saveT(t),2000);
+ info();markOn();
+ const tok=++seekTok,F=S.fadeMs;uiHold=false;seekTgt=null;
+ if(gn&&!au.paused&&!au.ended&&au.currentSrc){await new Promise(r=>fadeDuck(0,F,r));if(tok!==seekTok)return}
  if(url){URL.revokeObjectURL(url);url=null}
  if(t.blob){url=URL.createObjectURL(t.blob);au.src=url}else au.src=Capacitor.convertFileSrc(t.uri);
- initAudio();info();markOn();
+ initAudio();duck=0;fx();
  try{if(ac)await ac.resume();await au.play()}catch(_){}
+ if(tok===seekTok)fadeDuck(1,F);
  if(t.dev&&t.cq!==9&&t.cq!==2&&t.cq!==-1)hq(t)}
 async function fb(t){if(t._fb||!t.dev||curT!==t)return;t._fb=true;const pos=au.currentTime||0;
  try{const bl=await(await fetch(Capacitor.convertFileSrc(t.uri))).blob();if(curT!==t)return;
@@ -436,12 +456,13 @@ setInterval(()=>{if(!end)return;const r=end-Date.now();
 const mk=(c,h)=>{const d=document.createElement('div');d.className=c;if(h)d.innerHTML=h;return d};
 const btn=(t,f)=>{const b=document.createElement('button');b.textContent=t;b.onclick=f;return b};
 const ibtn=(n,f)=>{const b=document.createElement('button');b.innerHTML=ic(n);b.onclick=f;return b};
+const itm=(i,t,f)=>{const x=document.createElement('button');x.className='it';x.innerHTML=ic(i)+'<span></span>';x.lastChild.textContent=t;x.onclick=f;return x};
 let lastSg;
-const S={rain:true,rainAmt:60,react:true,vis:true,sort:'added',top:20,eqOn:true,eq:[0,0,0,0,0],speedOn:false,speed:1,seekStep:5,auto:true,minDur:30,eco:false,lang:(navigator.language||'').toLowerCase().startsWith('ru')?'ru':'en',cust:{bg:'#0b0714',ac:'#a855f7',ac2:'#6d28d9'},wpDim:60,wpBlur:6,resume:true,wake:true,mix:false,xf:false,xfLen:4,unplug:true,lock:true};
+const S={rain:true,rainAmt:60,rainN:90,react:true,vis:true,sort:'added',top:20,eqOn:true,eq:[0,0,0,0,0],speedOn:false,speed:1,seekStep:5,fadeMs:350,auto:true,minDur:30,eco:false,lang:(navigator.language||'').toLowerCase().startsWith('ru')?'ru':'en',cust:{bg:'#0b0714',ac:'#a855f7',ac2:'#6d28d9'},wpDim:60,wpBlur:6,resume:true,wake:true,mix:false,xf:false,xfLen:4,unplug:true,lock:true};
 try{Object.assign(S,JSON.parse(LS.g('set')||'{}'))}catch(_){}
-S.minDur=Math.max(1,Math.floor(+S.minDur)||30);S.speed=Math.min(3,Math.max(.3,+S.speed||1));S.seekStep=S.seekStep===10?10:5;
+S.minDur=Math.max(1,Math.floor(+S.minDur)||30);S.speed=Math.min(3,Math.max(.3,+S.speed||1));S.seekStep=S.seekStep===10?10:5;S.fadeMs=Math.min(1000,Math.max(100,+S.fadeMs||350));S.rainN=Math.min(150,Math.max(10,Math.round(+S.rainN)||90));
 const saveS=()=>LS.s('set',JSON.stringify(S));
-const applyS=()=>{document.body.classList.toggle('eco',!!S.eco);$('#vis').hidden=!S.vis;try{if(navigator.audioSession)navigator.audioSession.type=S.mix?'ambient':'auto'}catch(_){}};
+const applyS=()=>{$('#rain').style.display=S.rain?'':'none';document.body.classList.toggle('eco',!!S.eco);$('#vis').hidden=!S.vis;try{if(navigator.audioSession)navigator.audioSession.type=S.mix?'ambient':'auto'}catch(_){}};
 let wl;async function wake(on){try{const B=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Bg;if(B){B.awake({on:!!(on&&S.wake)});return}if(on&&S.wake&&navigator.wakeLock)wl=await navigator.wakeLock.request('screen');else if(wl){await wl.release();wl=null}}catch(_){}}
 function sorted(){const b=tracks.filter(t=>!t.hidden&&!t.short),c=f=>b.sort((x,y)=>f(x).localeCompare(f(y)));
  return S.sort==='name'?c(t=>t.name):S.sort==='artist'?c(t=>t.artist||'\uffff'):b.sort((x,y)=>(y.added||0)-(x.added||0))}
@@ -491,8 +512,8 @@ function seekBy(d){
   if(k<1)requestAnimationFrame(step)};
  requestAnimationFrame(step);
  if(au.paused||!gn){au.currentTime=tgt}
- else fadeDuck(0,90,()=>{if(tok!==seekTok)return;au.currentTime=tgt;setTimeout(()=>{if(tok===seekTok)fadeDuck(1,260)},50)});
- setTimeout(()=>{if(tok===seekTok){uiHold=false;seekTgt=null;if(duck<1)fadeDuck(1,200);bgu()}},dur+120)}
+ else fadeDuck(0,S.fadeMs,()=>{if(tok!==seekTok)return;au.currentTime=tgt;setTimeout(()=>{if(tok===seekTok)fadeDuck(1,S.fadeMs)},50)});
+ setTimeout(()=>{if(tok===seekTok){uiHold=false;seekTgt=null;if(duck<1)fadeDuck(1,S.fadeMs);bgu()}},Math.max(dur,S.fadeMs*2+60)+160)}
 function applySpeed(){const r=S.speedOn?S.speed:1;au.defaultPlaybackRate=r;au.playbackRate=r;
  const b=$('#spd');b.hidden=!S.speedOn;b.textContent=S.speed.toFixed(1)+'×'}
 function openSpeed(){
@@ -504,7 +525,7 @@ function openSpeed(){
  rg.value=Math.round(S.speed*10);show();rg.oninput=()=>set(rg.value/10);
  for(const v of[0.5,1,1.5,2,3])pw.append(btn(v+'×',()=>set(v)));
  bx.querySelector('.pr').onclick=closeM;ovl.hidden=false}
-function openEq(){go('r');
+function openEq(from){go('r');
  bx.innerHTML='<h3>Эквалайзер</h3>';
  const tg=document.createElement('button');tg.className='tg'+(S.eqOn?' on':'');
  const on=()=>{if(!S.eqOn){S.eqOn=true;tg.classList.add('on')}};
@@ -519,6 +540,7 @@ function openEq(){go('r');
  const pw=mk('seg');pw.style.cssText='margin-top:14px;flex-wrap:wrap';
  for(const k in PRE)pw.append(btn(k,()=>{on();S.eq=[...PRE[k]];ins.forEach(([inp,sh],i)=>{inp.value=S.eq[i];sh()});saveS();applyEq()}));
  bx.append(pw);
+ if(typeof from==='string'){bx.append(mk('sep'));bx.append(itm('back','Назад',()=>openSet(from==='menu'?undefined:from,true)))}
  const c=btn('Готово',closeM);c.className='pr';bx.append(c);ovl.hidden=false}
 const zipLib=()=>window.JSZip?Promise.resolve():new Promise((a,b)=>{const e=document.createElement('script');e.src='jszip.min.js';e.onload=a;e.onerror=b;document.head.append(e)});
 const bkey=t=>(t.name+'|'+(t.artist||'')).toLowerCase();
@@ -659,8 +681,9 @@ function openSet(which,back){
   im.src=URL.createObjectURL(f)};
  wc.append(pk,btn('Убрать',()=>{try{localStorage.removeItem('wp')}catch(_){}applyWp()}));
  row('Обои',wc);row('Затемнение обоев',rg('wpDim',0,90,applyWp));row('Размытие обоев',rg('wpBlur',0,24,applyWp));
- row('Дождь',tog('rain'));
- row('Густота дождя',rg('rainAmt',10,160,resize));
+ row('Дождь',tog('rain',applyS));
+ row('Количество капель',rg('rainN',10,150,rebuildRain));
+ row('Густота дождя',rg('rainAmt',10,160),'Скорость падения капель');
  row('Дождь слышит музыку',tog('react'));
  row('Визуализатор',tog('vis',()=>{applyS();resize()}));
  row('Экономия ресурсов',tog('eco',applyS),'Реже обновляет дождь и анимации. Меньше нагрузка и расход заряда');
@@ -669,11 +692,16 @@ function openSet(which,back){
  row('Длительность кроссфейда',sk('xfLen',[[2,'2 с'],[4,'4 с'],[6,'6 с']]));
  row('Ускорение треков',tog('speedOn',applySpeed),'Показывает значок скорости в плеере: от 0.3× до 3×');
  row('Интервал перемотки',sk('seekStep',[[5,'5 с'],[10,'10 с']],seekUi));
+ {const fr=document.createElement('input');fr.type='range';fr.min=100;fr.max=1000;fr.step=50;fr.value=S.fadeMs;
+  const fv=document.createElement('span'),sh=()=>{fv.textContent=(S.fadeMs/1000).toFixed(2).replace(/0$/,'')+' с'};
+  fr.oninput=()=>{S.fadeMs=+fr.value;saveS();sh()};sh();
+  const w=mk('');w.style.cssText='display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end';w.append(fr,fv);
+  row('Плавность переходов',w,'Длительность затухания и нарастания звука при перемотке и смене трека')}
  row('Пауза при отключении',tog('unplug'),'Музыка становится на паузу при отключении наушников');
  row('Не выключать экран',tog('wake'),'Оставаться включённым на экране плеера');
  row('Воспроизв. на экране блокировки',tog('lock',bgu),'Показывать, что играет, на экране блокировки');
  row('Помнить последний трек',tog('resume'));
- {const eb=document.createElement('button');eb.className='it';eb.innerHTML=ic('eq')+'<span>Эквалайзер</span>';eb.onclick=openEq;cur.append(eb)}
+ {const eb=document.createElement('button');eb.className='it';eb.innerHTML=ic('eq')+'<span>Эквалайзер</span>';eb.onclick=()=>openEq('Воспроизведение');cur.append(eb)}
  sec('Библиотека');
  row('Порядок песен',sk('sort',[['added','Новые'],['name','А–Я'],['artist','Артист']],render));
  row('Размер топа',sk('top',[[10,'10'],[20,'20'],[50,'50']],render));
@@ -691,7 +719,7 @@ function openSet(which,back){
   rb.onclick=async()=>{rb.lastChild.textContent='Ищу…';await syncLib(true);rb.lastChild.textContent=devErr?'Нет доступа к музыке. Разреши в настройках телефона: Приложения → Rainy: Audio player → Разрешения':cnt()};cur.append(rb)}
  const hb=document.createElement('button');hb.className='it';hb.innerHTML=ic('eyeoff')+'<span></span>';
  hb.lastChild.textContent='Скрытая музыка ('+tracks.filter(t=>t.hidden).length+')';hb.onclick=openHidden;cur.append(hb);
- const rs=btn('Сбросить статистику прослушиваний',()=>{closeM();sheet('Сбросить статистику?',[['Да, сбросить',async()=>{for(const t of tracks){t.plays=0;await saveT(t)}render()},'trash']])});
+ const rs=itm('trash','Сбросить статистику прослушиваний',()=>{closeM();sheet('Сбросить статистику?',[['Да, сбросить',async()=>{for(const t of tracks){t.plays=0;await saveT(t)}render()},'trash']])});
  cur.append(rs);
  {const bb=document.createElement('button');bb.className='it';bb.innerHTML=ic('download')+'<span>Резервная копия и перенос</span>';bb.onclick=openBackup;cur.append(bb)}
  sec('Язык');row('Язык / Language',seg([['ru','Русский'],['en','English']],()=>S.lang,v=>setLang(v)));
@@ -699,14 +727,14 @@ function openSet(which,back){
  const mb=(i,t,f)=>{const x=document.createElement('button');x.className='it';x.innerHTML=ic(i)+'<span></span>';x.lastChild.textContent=t;x.onclick=()=>f();return x};
  bx.innerHTML='<h3></h3>';
  if(!which){bx.firstChild.textContent='Настройки';
-  bx.append(mb('globe','Язык / Language',()=>openSet('Язык')),mb('palette','Оформление',()=>openSet('Оформление')),mb('play','Воспроизведение',()=>openSet('Воспроизведение')),mb('music','Библиотека',()=>openSet('Библиотека')),mb('eq','Эквалайзер',openEq),mb('download','Резервная копия и перенос',openBackup))}
- else{bx.firstChild.textContent=which;bx.append(secs[which]);const bk=btn('Назад',()=>openSet());bk.className='gh';bx.append(bk)}
+  bx.append(mb('globe','Язык / Language',()=>openSet('Язык')),mb('palette','Оформление',()=>openSet('Оформление')),mb('play','Воспроизведение',()=>openSet('Воспроизведение')),mb('music','Библиотека',()=>openSet('Библиотека')),mb('eq','Эквалайзер',()=>openEq('menu')),mb('download','Резервная копия и перенос',openBackup))}
+ else{bx.firstChild.textContent=which;bx.append(secs[which]);bx.append(mk('sep'));bx.append(itm('back','Назад',()=>openSet()))}
  const c=btn('Готово',closeM);c.className='pr';bx.append(c);ovl.hidden=false}
 
 $('#fav').onclick=e=>{e.stopPropagation();if(!curT)return;curT.fav=!curT.fav;saveT(curT);favUi();favRows();if(openId==='fav')renderP();bgu()};
 $('#gear').onclick=()=>openSet();
 $('#spd').onclick=()=>openSpeed();
-$('#sbk').onclick=()=>seekBy(-1);$('#sfw').onclick=()=>seekBy(1);$('#eqb').onclick=openEq;
+$('#sbk').onclick=()=>seekBy(-1);$('#sfw').onclick=()=>seekBy(1);$('#eqb').onclick=()=>openEq();
 try{const P=window.Capacitor&&Capacitor.Plugins;if(P){
  P.App&&P.App.addListener('backButton',()=>{if(popEl)closePop();else if(!$('#ov').hidden)closeM();else if(!$('#fp').hidden)setFp(false);else if(view==='pls'&&openId){navP(-1,()=>{openId=null;query2='';$('#q2').value=''})}else if(view==='pls'){setPage(0)}else P.App.minimizeApp()});
  P.Bg&&P.Bg.addListener('act',e=>{const a=e.a;
@@ -997,8 +1025,12 @@ const DICT=new Map(`Песни|Songs
 Скорость воспроизведения|Playback speed
 Время до выключения|Sleep timer
 Выкл|Off
-Интервал перемотки|Seek interval`.split('\n').map(l=>{const i=l.indexOf('|');return[l.slice(0,i),l.slice(i+1)]}));
-const RX=[[/^Треков: (\d+)$/,m=>'Tracks: '+m[1]],[/^Найдено: (\d+) из (\d+)$/,m=>'Found: '+m[1]+' of '+m[2]],[/^(\d+) песен$/,m=>m[1]+' songs'],[/^(\d+) мин$/,m=>m[1]+' min'],[/^(\d+) с$/,m=>m[1]+' s'],
+Интервал перемотки|Seek interval
+Количество капель|Number of drops
+Скорость падения капель|Fall speed of the drops
+Плавность переходов|Transition smoothness
+Длительность затухания и нарастания звука при перемотке и смене трека|Length of the sound fade when seeking and changing tracks`.split('\n').map(l=>{const i=l.indexOf('|');return[l.slice(0,i),l.slice(i+1)]}));
+const RX=[[/^Треков: (\d+)$/,m=>'Tracks: '+m[1]],[/^Найдено: (\d+) из (\d+)$/,m=>'Found: '+m[1]+' of '+m[2]],[/^(\d+) песен$/,m=>m[1]+' songs'],[/^(\d+) мин$/,m=>m[1]+' min'],[/^([\d.]+) с$/,m=>m[1]+' s'],
  [/^Найдено на устройстве: (\d+)$/,m=>'Found on device: '+m[1]],[/^Скрытая музыка \((\d+)\)$/,m=>'Hidden music ('+m[1]+')'],
  [/^Удалить «([\s\S]*)» с устройства\?$/,m=>'Delete "'+m[1]+'" from device?'],[/^Удалить «([\s\S]*)»\?$/,m=>'Delete "'+m[1]+'"?'],
  [/^Добавить в «([\s\S]*)»$/,m=>'Add to "'+(DICT.get(m[1])||m[1])+'"'],[/^Не получилось: ([\s\S]*)$/,m=>'Failed: '+m[1]],[/^Осталось: (\d+) мин$/,m=>'Left: '+m[1]+' min'],
