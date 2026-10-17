@@ -233,11 +233,11 @@ i[data-i]{display:inline-flex}
 .mc{width:33.3333%;display:flex;align-items:center;min-width:0;padding-right:6px}
 .mc .nm{flex:1;min-width:0}
 .ctl #sbk,.ctl #sfw{font-size:21px}
-@keyframes popIn{from{opacity:0;transform:scale(.9) translateY(-6px)}}
-@keyframes popOut{to{opacity:0;transform:scale(.92) translateY(-4px)}}
+@keyframes popIn{from{opacity:0;transform:scale(.86) translateY(-10px)}}
+@keyframes popOut{to{opacity:0;transform:scale(.9) translateY(-8px)}}
 #popbg{position:fixed;inset:0;z-index:8}
-#pop{position:fixed;z-index:9;background:var(--bg);border:1px solid var(--ln);border-radius:16px;padding:10px;box-shadow:0 10px 30px #0009;min-width:170px;max-width:250px;animation:popIn .22s var(--e)}
-#pop.out{animation:popOut .17s ease-in forwards}
+#pop{position:fixed;z-index:9;background:var(--bg);border:1px solid var(--ln);border-radius:16px;padding:10px;box-shadow:0 10px 30px #0009;min-width:170px;max-width:250px;animation:popIn .42s cubic-bezier(.16,1,.3,1)}
+#pop.out{animation:popOut .34s cubic-bezier(.4,0,.2,1) forwards}
 .ph{font-size:11.5px;color:var(--mu);margin:0 2px 8px;text-transform:uppercase;letter-spacing:.6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{padding:7px 11px;border-radius:11px;font-size:13px;border:1px solid var(--ln);background:var(--card)}
@@ -250,6 +250,7 @@ i[data-i]{display:inline-flex}
 #q2{width:100%;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:10px 12px 10px 38px;color:var(--tx);font:inherit}
 #pager{contain:layout paint}
 .pg{contain:layout style}
+.chip,.sw i{transition:border-color .3s,transform .2s}
 </style></head><body>
 <div id="wp" hidden></div><canvas id="rain"></canvas>
 <div id="app">
@@ -370,7 +371,7 @@ function bgu(){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B||
  if(t!==lastT||cv!==lastCov){o.cover=cv?cv.split(',')[1]:'';lastT=t;lastCov=cv}
  B.update(o)}catch(_){}}
 function fx(){if(!gn)return;const L=S.xfLen,d=au.duration,c=au.currentTime;
- gn.gain.value=S.xf&&d&&!au.paused?Math.max(0,Math.min(1,(d-c)/L,c/L)):1}
+ gn.gain.value=(S.xf&&d&&!au.paused?Math.max(0,Math.min(1,(d-c)/L,c/L)):1)*duck}
 function initAudio(){if(ac)return;try{ac=new(window.AudioContext||window.webkitAudioContext)();an=ac.createAnalyser();an.fftSize=128;fd=new Uint8Array(an.frequencyBinCount);
  const s=ac.createMediaElementSource(au);gn=ac.createGain();s.connect(gn);let pn=gn;eqF=[60,230,910,3600,14000].map((fr,i)=>{const f=ac.createBiquadFilter();f.type=i==0?'lowshelf':i==4?'highshelf':'peaking';f.frequency.value=fr;f.Q.value=1;pn.connect(f);pn=f;return f});pn.connect(an);an.connect(ac.destination);applyEq()}catch(_){an=null}}
 function thumb(el,t){el.style.backgroundImage=t.cover?'url('+t.cover+')':'';el.innerHTML=t.cover?'':ic('music')}
@@ -411,7 +412,7 @@ au.onplay=()=>{bg(true);$('#pp').innerHTML=$('#mpp').innerHTML=ic('pause');if('m
 au.onpause=()=>{bgu();$('#pp').innerHTML=$('#mpp').innerHTML=ic('play');if('mediaSession'in navigator)navigator.mediaSession.playbackState='paused'};
 au.onended=()=>next(true);au.onseeked=bgu;au.onratechange=()=>bgu();au.ondurationchange=()=>bgu();
 au.onloadedmetadata=()=>{bgu();$('#du').textContent=fmt(au.duration);const t=curT;if(t&&t.dev&&!t._fb&&au.duration&&(!au.seekable.length||au.seekable.end(au.seekable.length-1)<au.duration-1))fb(t)};
-au.ontimeupdate=()=>{fx();$('#mp').style.width=(au.duration?au.currentTime/au.duration*100:0)+'%';if(S.resume&&curT&&Date.now()-lastSv>2000){lastSv=Date.now();LS.s('last',JSON.stringify({id:curT.id,pos:au.currentTime}))}$('#cu').textContent=fmt(au.currentTime);if(!drag&&au.duration)$('#seek').value=au.currentTime/au.duration*1000};
+au.ontimeupdate=()=>{fx();if(!uiHold)$('#mp').style.width=(au.duration?au.currentTime/au.duration*100:0)+'%';if(S.resume&&curT&&Date.now()-lastSv>2000){lastSv=Date.now();LS.s('last',JSON.stringify({id:curT.id,pos:au.currentTime}))}if(!uiHold)$('#cu').textContent=fmt(au.currentTime);if(!drag&&!uiHold&&au.duration)$('#seek').value=au.currentTime/au.duration*1000};
 const sk=$('#seek');let wasP=false;
 const sStart=()=>{if(drag)return;drag=true;wasP=!au.paused;if(wasP)au.pause()};
 const sEnd=()=>{if(!drag)return;drag=false;if(au.duration)au.currentTime=sk.value/1000*au.duration;if(wasP)au.play()};
@@ -456,7 +457,7 @@ function applyWp(){const w=$('#wp');let u=null;try{u=localStorage.getItem('wp')}
 const PRE={'Плоский':[0,0,0,0,0],'Бас':[7,4,0,-1,0],'Вокал':[-2,0,4,3,-1],'Яркий':[-1,0,2,5,6],'Тёплый':[3,2,0,-2,-4]},BN=['60','230','910','3.6к','14к'];
 function applyEq(){eqF.forEach((f,i)=>f.gain.value=S.eqOn?S.eq[i]:0)}
 let popEl=null,slSel=0;
-function closePop(){if(!popEl)return;const e=popEl,g=document.getElementById('popbg');popEl=null;e.classList.add('out');if(g)g.remove();setTimeout(()=>e.remove(),180)}
+function closePop(){if(!popEl)return;const e=popEl,g=document.getElementById('popbg');popEl=null;e.classList.add('out');if(g)g.remove();setTimeout(()=>e.remove(),360)}
 function popAt(anchor,html){closePop();
  const g=document.createElement('div');g.id='popbg';g.onclick=closePop;
  const p=document.createElement('div');p.id='pop';p.innerHTML=html;document.body.append(g,p);popEl=p;
@@ -466,7 +467,7 @@ function openSleep(a){
  const p=popAt(a,'<div class="ph">Время до выключения</div><div class="chips"></div><div class="pst"></div>'),ch=p.querySelector('.chips'),st=p.querySelector('.pst'),O=[0,15,30,45,60];
  const upd=()=>{st.textContent=end?'Осталось: '+Math.ceil((end-Date.now())/60000)+' мин':'';[...ch.children].forEach((c,i)=>c.classList.toggle('on',end?O[i]===slSel:i===0))};
  [[0,'Выкл'],[15,'15 мин'],[30,'30 мин'],[45,'45 мин'],[60,'60 мин']].forEach(([m,t])=>{
-  const b=btn(t,()=>{slSel=m;end=m?Date.now()+m*60000:0;au.volume=vol;sl();upd();setTimeout(closePop,260)});b.className='chip';ch.append(b)});
+  const b=btn(t,()=>{slSel=m;end=m?Date.now()+m*60000:0;au.volume=vol;sl();upd();setTimeout(closePop,480)});b.className='chip';ch.append(b)});
  upd()}
 function openThemePop(a){
  const p=popAt(a,'<div class="ph">Тема</div><div class="chips"></div>'),box=p.querySelector('.chips');
@@ -476,7 +477,22 @@ function openThemePop(a){
   b.onclick=()=>{ti=i;applyTheme();[...box.children].forEach((x,k)=>x.classList.toggle('on',k===i))};box.append(b)})}
 function skIc(c){return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(c?'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>')+'<text x="12" y="15.4" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none">'+S.seekStep+'</text></svg>'}
 function seekUi(){$('#sbk').innerHTML=skIc(0);$('#sfw').innerHTML=skIc(1)}
-function seekBy(d){if(!au.duration)return;au.currentTime=Math.max(0,Math.min(au.duration,au.currentTime+d*S.seekStep));bgu()}
+let duck=1,uiHold=false,seekTok=0,seekTgt=null;
+function fadeDuck(to,ms,done){const from=duck,t0=performance.now(),tok=seekTok;
+ const f=n=>{if(tok!==seekTok)return;const k=Math.min(1,(n-t0)/ms);duck=from+(to-from)*k;fx();if(k<1)requestAnimationFrame(f);else if(done)done()};
+ requestAnimationFrame(f)}
+function seekBy(d){
+ const D=au.duration;if(!D)return;
+ const cur=seekTgt!==null?seekTgt:au.currentTime,tgt=Math.max(0,Math.min(D,cur+d*S.seekStep)),tok=++seekTok;
+ seekTgt=tgt;uiHold=true;
+ const from=(+$('#seek').value/1000)*D||au.currentTime,t0=performance.now(),dur=340;
+ const step=n=>{if(tok!==seekTok)return;const k=Math.min(1,(n-t0)/dur),e=1-Math.pow(1-k,3),p=from+(tgt-from)*e;
+  $('#seek').value=p/D*1000;$('#cu').textContent=fmt(p);$('#mp').style.width=(p/D*100)+'%';
+  if(k<1)requestAnimationFrame(step)};
+ requestAnimationFrame(step);
+ if(au.paused||!gn){au.currentTime=tgt}
+ else fadeDuck(0,90,()=>{if(tok!==seekTok)return;au.currentTime=tgt;setTimeout(()=>{if(tok===seekTok)fadeDuck(1,260)},50)});
+ setTimeout(()=>{if(tok===seekTok){uiHold=false;seekTgt=null;if(duck<1)fadeDuck(1,200);bgu()}},dur+120)}
 function applySpeed(){const r=S.speedOn?S.speed:1;au.defaultPlaybackRate=r;au.playbackRate=r;
  const b=$('#spd');b.hidden=!S.speedOn;b.textContent=S.speed.toFixed(1)+'×'}
 function openSpeed(){
