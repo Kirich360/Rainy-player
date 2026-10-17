@@ -34,8 +34,34 @@ jobs:
         run: |
           D=android/app/src/main/java/com/rainy/player
           mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/layout
+          cat > android/app/src/main/res/layout/notif_small.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+          <ImageView android:id="@+id/n_art" android:layout_width="48dp" android:layout_height="48dp" android:scaleType="centerCrop" android:layout_marginEnd="10dp"/>
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+          <TextView android:id="@+id/n_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"/>
+          <TextView android:id="@+id/n_artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification"/>
+
+          </LinearLayout>
+          <ImageButton android:id="@+id/n_fav" android:layout_width="44dp" android:layout_height="44dp" android:background="@android:color/transparent" android:scaleType="centerInside" android:padding="10dp" android:contentDescription="favorite"/>
+          </LinearLayout>
+          EOF
+          cat > android/app/src/main/res/layout/notif_big.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+          <ImageView android:id="@+id/n_art" android:layout_width="72dp" android:layout_height="72dp" android:scaleType="centerCrop" android:layout_marginEnd="10dp"/>
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+          <TextView android:id="@+id/n_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"/>
+          <TextView android:id="@+id/n_artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification"/>
+          <ProgressBar android:id="@+id/n_prog" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:max="100"/>
+          <TextView android:id="@+id/n_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:singleLine="true" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification"/>
+          </LinearLayout>
+          <ImageButton android:id="@+id/n_fav" android:layout_width="44dp" android:layout_height="44dp" android:background="@android:color/transparent" android:scaleType="centerInside" android:padding="10dp" android:contentDescription="favorite"/>
+          </LinearLayout>
+          EOF
           cat > android/app/src/main/res/drawable/ic_heart_off.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"/></vector>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:strokeColor="#FFFFFF" android:strokeWidth="2" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"/></vector>
           EOF
           cat > android/app/src/main/res/drawable/ic_heart_on.xml <<'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF3B30" android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"/></vector>
@@ -235,9 +261,10 @@ jobs:
               PlayerService.SPD = (float) (double) c.getDouble("spd", 1.0);
               if (c.hasOption("cover")) {
                 PlayerService.ART = null;
+                PlayerService.ARTS = null;
                 String s = c.getString("cover", "");
                 if (s != null && !s.isEmpty()) {
-                  try { byte[] b = Base64.decode(s, Base64.DEFAULT); PlayerService.ART = BitmapFactory.decodeByteArray(b, 0, b.length); } catch (Exception e) {}
+                  try { byte[] b = Base64.decode(s, Base64.DEFAULT); PlayerService.ART = BitmapFactory.decodeByteArray(b, 0, b.length); PlayerService.ARTS = android.graphics.Bitmap.createScaledBitmap(PlayerService.ART, 160, 160, true); } catch (Exception e) {}
                 }
               }
               PlayerService.push();
@@ -258,28 +285,28 @@ jobs:
           import android.app.*;
           import android.content.Intent;
           import android.content.pm.ServiceInfo;
+          import android.content.res.Configuration;
           import android.graphics.Bitmap;
           import android.graphics.drawable.Icon;
           import android.media.MediaMetadata;
           import android.media.session.MediaSession;
           import android.media.session.PlaybackState;
           import android.os.*;
+          import android.view.View;
+          import android.widget.RemoteViews;
           public class PlayerService extends Service {
             static PlayerService S;
             static String T = "Rainy: Audio player", A = "";
             static boolean P = false, F = false, L = true, EN = false;
             static long POS = 0, DUR = 0;
             static float SPD = 1f;
-            static Bitmap ART = null;
+            static Bitmap ART = null, ARTS = null;
             private PowerManager.WakeLock wl;
             private MediaSession ms;
-            private Notification.Builder nb;
             private long stamp = 0;
             private final Handler hd = new Handler(Looper.getMainLooper());
             private final Runnable tk = new Runnable() {
-              @Override public void run() {
-                if (P && nb != null) { upd(); hd.postDelayed(this, 1000); }
-              }
+              @Override public void run() { if (P) { upd(); hd.postDelayed(this, 1000); } }
             };
             static void push() { if (S != null) S.apply(); }
             private static String fmt(long ms) {
@@ -303,21 +330,49 @@ jobs:
               if (Build.VERSION.SDK_INT >= 26)
                 getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("rp", java.util.Locale.getDefault().getLanguage().equals("ru") ? "Воспроизведение" : "Playback", NotificationManager.IMPORTANCE_LOW));
             }
+            private PendingIntent svc(String a) {
+              return PendingIntent.getService(this, a.hashCode(), new Intent(this, PlayerService.class).setAction(a), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            }
             private Notification.Action act(String a, int icon, String label) {
-              PendingIntent pi = PendingIntent.getService(this, a.hashCode(), new Intent(this, PlayerService.class).setAction(a), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-              return new Notification.Action.Builder(Icon.createWithResource(this, icon), label, pi).build();
+              return new Notification.Action.Builder(Icon.createWithResource(this, icon), label, svc(a)).build();
+            }
+            private Notification build(long pos) {
+              boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+              int fg = night ? 0xFFFFFFFF : 0xFF202124;
+              if (DUR > 0) pos = Math.max(0, Math.min(DUR, pos));
+              String sub = DUR > 0 ? fmt(pos) + " / " + fmt(DUR) : "";
+              String artist = A.isEmpty() ? "Rainy: Audio player" : A;
+              RemoteViews sm = new RemoteViews(getPackageName(), R.layout.notif_small);
+              RemoteViews bg = new RemoteViews(getPackageName(), R.layout.notif_big);
+              for (RemoteViews rv : new RemoteViews[]{sm, bg}) {
+                rv.setTextViewText(R.id.n_title, T);
+                rv.setTextViewText(R.id.n_artist, artist);
+                if (ARTS != null) { rv.setImageViewBitmap(R.id.n_art, ARTS); rv.setViewVisibility(R.id.n_art, View.VISIBLE); }
+                else rv.setViewVisibility(R.id.n_art, View.GONE);
+                rv.setImageViewResource(R.id.n_fav, F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off);
+                if (!F) rv.setInt(R.id.n_fav, "setColorFilter", fg);
+                rv.setOnClickPendingIntent(R.id.n_fav, svc("fav"));
+              }
+              bg.setTextViewText(R.id.n_time, sub);
+              bg.setProgressBar(R.id.n_prog, DUR > 0 ? (int) DUR : 1, (int) pos, false);
+              Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
+              Intent o = new Intent(this, MainActivity.class);
+              o.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+              b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(artist)
+               .setOngoing(true).setOnlyAlertOnce(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
+               .setContentIntent(PendingIntent.getActivity(this, 0, o, PendingIntent.FLAG_IMMUTABLE))
+               .addAction(act("prev", android.R.drawable.ic_media_previous, EN ? "Previous" : "Назад"))
+               .addAction(act("toggle", P ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, P ? (EN ? "Pause" : "Пауза") : (EN ? "Play" : "Играть")))
+               .addAction(act("next", android.R.drawable.ic_media_next, EN ? "Next" : "Дальше"))
+               .setCustomContentView(sm).setCustomBigContentView(bg)
+               .setStyle(new Notification.DecoratedMediaCustomViewStyle().setMediaSession(ms.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
+              if (DUR > 0) b.setSubText(sub);
+              if (ARTS != null) b.setLargeIcon(ARTS);
+              return b.build();
             }
             private void upd() {
               long pos = POS + (P ? (long) ((SystemClock.elapsedRealtime() - stamp) * SPD) : 0);
-              if (DUR > 0) {
-                pos = Math.max(0, Math.min(DUR, pos));
-                nb.setProgress((int) DUR, (int) pos, false);
-                nb.setSubText(fmt(pos) + " / " + fmt(DUR));
-              } else {
-                nb.setProgress(0, 0, false);
-                nb.setSubText(null);
-              }
-              getSystemService(NotificationManager.class).notify(1, nb.build());
+              getSystemService(NotificationManager.class).notify(1, build(pos));
             }
             void apply() {
               try {
@@ -325,30 +380,12 @@ jobs:
                   .putString(MediaMetadata.METADATA_KEY_TITLE, T).putString(MediaMetadata.METADATA_KEY_ARTIST, A).putLong(MediaMetadata.METADATA_KEY_DURATION, DUR);
                 if (ART != null) m.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, ART);
                 ms.setMetadata(m.build());
-                int heart = F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off;
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
-                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), heart).build())
+                  .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off).build())
                   .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build());
-                Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "rp") : new Notification.Builder(this);
-                Intent o = new Intent(this, MainActivity.class);
-                o.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                b.setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(T).setContentText(A.isEmpty() ? "Rainy: Audio player" : A)
-                 .setOngoing(true).setOnlyAlertOnce(true).setVisibility(L ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_SECRET)
-                 .setContentIntent(PendingIntent.getActivity(this, 0, o, PendingIntent.FLAG_IMMUTABLE))
-                 .addAction(act("prev", android.R.drawable.ic_media_previous, EN ? "Previous" : "Назад"))
-                 .addAction(act("toggle", P ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, P ? (EN ? "Pause" : "Пауза") : (EN ? "Play" : "Играть")))
-                 .addAction(act("next", android.R.drawable.ic_media_next, EN ? "Next" : "Дальше"))
-                 .addAction(act("fav", heart, EN ? "Favorite" : "Избранное"))
-                 .setStyle(new Notification.MediaStyle().setMediaSession(ms.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
-                if (ART != null) b.setLargeIcon(ART);
-                nb = b;
                 stamp = SystemClock.elapsedRealtime();
-                if (DUR > 0) {
-                  b.setProgress((int) DUR, (int) Math.min(DUR, POS), false);
-                  b.setSubText(fmt(POS) + " / " + fmt(DUR));
-                }
-                Notification n = b.build();
+                Notification n = build(POS);
                 if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
                 if (wl == null) wl = ((PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rainy:play");
                 if (P && !wl.isHeld()) wl.acquire();
@@ -381,7 +418,7 @@ jobs:
           s=s.replace('</application>','<service android:name=".PlayerService" android:foregroundServiceType="mediaPlayback" android:exported="false"/>\n</application>')
           open(p,'w').write(s)
           PY
-          sed -i 's/minSdkVersion = 22/minSdkVersion = 23/' android/variables.gradle
+          sed -i 's/minSdkVersion = 22/minSdkVersion = 24/' android/variables.gradle
           npx cap sync android
       - name: App icon
         run: |
