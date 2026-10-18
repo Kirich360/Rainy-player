@@ -289,8 +289,19 @@ input[type=search]::-webkit-search-decoration,input[type=search]::-webkit-search
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--bg);border:1px solid var(--ac);color:var(--tx);padding:10px 16px;border-radius:14px;z-index:20;font-size:14px;box-shadow:0 6px 24px #0008;animation:toastIn .3s var(--e);white-space:nowrap}
 .toast.out{opacity:0;transition:opacity .3s}
 #mfav.y{color:var(--ac)}
+.rw{position:absolute;inset:0;will-change:transform}
+#rain{contain:layout paint}
+#fp{background:none;transition:none}
+#fp::before{content:'';position:absolute;inset:0;background:var(--bg);z-index:-1;opacity:1;transition:opacity .45s}
+#fp.ready::before{opacity:0}
+@keyframes glowPulse{from{opacity:.6}to{opacity:1}}
+@keyframes glowSlide{from{transform:translate3d(-18%,0,0)}to{transform:translate3d(18%,0,0)}}
+#glow{position:fixed;left:0;right:0;top:0;height:44vh;z-index:0;pointer-events:none;display:none;overflow:hidden;
+ background:radial-gradient(120% 95% at 50% -12%,rgba(90,190,255,.38),rgba(60,140,255,.13) 46%,transparent 74%);animation:glowPulse 6s ease-in-out infinite alternate;will-change:opacity}
+#glow::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 18%,rgba(130,225,255,.16) 46%,transparent 74%);animation:glowSlide 14s ease-in-out infinite alternate;will-change:transform}
+body.stars #glow{display:block}
 </style></head><body>
-<div id="wp" hidden></div><div id="rain"><div class="rl" id="rl1"></div><div class="rl" id="rl2"></div></div>
+<div id="wp" hidden></div><div id="glow"></div><div id="rain"><div class="rw" id="rw1"><div class="rl" id="rl1"></div></div><div class="rw" id="rw2"><div class="rl" id="rl2"></div></div></div>
 <div id="app">
   <div class="top"><h1>Rainy: <span>Audio player</span></h1><button id="theme" data-i="palette"></button><button id="gear" data-i="sliders"></button></div>
   <div class="tabs"><button id="tS" class="on">Песни</button><button id="tP">Плейлисты</button></div>
@@ -376,24 +387,41 @@ let rgb=[168,85,247],acc='#a855f7';
 $('#theme').onclick=e=>openThemePop(e.currentTarget);
 
 /* дождь + визуализатор */
-const vc=$('#vis'),vx=vc.getContext('2d'),rl1=$('#rl1'),rl2=$('#rl2');
-let rainPos=[0,0],rainH=800,lvCur=0,lastF=0,lastR=0;
+const vc=$('#vis'),vx=vc.getContext('2d'),rl1=$('#rl1'),rl2=$('#rl2'),rw1=$('#rw1'),rw2=$('#rw2');
+let rainH=800,lvCur=0,lastF=0,lastR=0,lastRate=1,rA=[null,null],sA=[null,null];
+function busy(ms){window._busyUntil=performance.now()+ms}
+function rateNow(){const k=S.weather==='snow'?1.2:S.weather==='stars'?1.5:2.5;return(S.rainAmt/60)*(1+(S.react?lvCur*k:0))}
+function startRain(){
+ for(let k=0;k<2;k++){if(rA[k]){rA[k].cancel();rA[k]=null}if(sA[k]){sA[k].cancel();sA[k]=null}}
+ if(!S.rain)return;
+ const wt=S.weather,sp=wt==='snow'?[26,52]:wt==='stars'?[170,300]:[380,640];lastRate=rateNow();
+ [[rl1,rw1],[rl2,rw2]].forEach(([el,wr],k)=>{
+  rA[k]=el.animate([{transform:'translate3d(0,'+(-rainH)+'px,0)'},{transform:'translate3d(0,0,0)'}],{duration:rainH/sp[k]*1000,iterations:Infinity,easing:'linear'});
+  rA[k].playbackRate=lastRate;
+  if(wt==='snow'){const a=k?28:18;sA[k]=wr.animate([{transform:'translate3d('+(-a)+'px,0,0)'},{transform:'translate3d('+a+'px,0,0)'}],{duration:k?2800:3800,direction:'alternate',iterations:Infinity,easing:'ease-in-out'})}})}
 function doRain(){
- const snow=S.weather==='snow',w=innerWidth+(snow?80:0),h=innerHeight,sc=w*h>2e6?.5:1,n=S.rainN;rainH=h;
+ const wt=S.weather,snow=wt==='snow',star=wt==='stars',w=innerWidth+(snow?80:0),h=innerHeight,sc=w*h>2e6?.5:1,n=S.rainN;rainH=h;
  $('#rain').classList.toggle('snow',snow);
  const sn=mixc(acc,'#ffffff',.8);
- const L=snow?[['rl1',1.2,2.2,.55],['rl2',2.4,4,.85]]:[['rl1',.9,.28,12,10],['rl2',1.3,.42,22,16]];
- L.forEach((cfg,k)=>{
+ const L=star?[['rl1',1.2,.5,40,45,1.3],['rl2',2,.95,80,70,2.3]]:snow?[['rl1',1.2,2.2,.55],['rl2',2.4,4,.85]]:[['rl1',.9,.28,12,10],['rl2',1.3,.42,22,16]];
+ L.forEach(cfg=>{
   const c=document.createElement('canvas');c.width=Math.round(w*sc);c.height=Math.round(h*sc);const x=c.getContext('2d');x.scale(sc,sc);
-  const cnt=Math.round(n/2);
-  if(snow){x.fillStyle=sn;x.globalAlpha=cfg[3];
+  const cnt=Math.round(n/(star?4:2));
+  if(star){
+   for(let i=0;i<cnt;i++){const px=Math.random()*w,py=Math.random()*h,len=cfg[3]+Math.random()*cfg[4],dx=len*.14;
+    for(const oy of[0,h]){if(oy&&py-len>=0)continue;const hy=py+oy;
+     const g=x.createLinearGradient(px,hy,px+dx,hy-len);g.addColorStop(0,'rgba(225,243,255,'+cfg[2]+')');g.addColorStop(1,'rgba(120,190,255,0)');
+     x.strokeStyle=g;x.lineWidth=cfg[1];x.lineCap='round';x.beginPath();x.moveTo(px,hy);x.lineTo(px+dx,hy-len);x.stroke();
+     x.save();x.shadowColor='rgba(150,210,255,.95)';x.shadowBlur=7;x.fillStyle='rgba(240,250,255,'+cfg[2]+')';x.beginPath();x.arc(px,hy,cfg[5],0,6.2832);x.fill();x.restore()}}}
+  else if(snow){x.fillStyle=sn;x.globalAlpha=cfg[3];
    for(let i=0;i<cnt;i++){const px=Math.random()*w,py=Math.random()*h,r=cfg[1]+Math.random()*(cfg[2]-cfg[1]);
     x.beginPath();x.arc(px,py,r,0,6.2832);x.fill();if(py+r>h){x.beginPath();x.arc(px,py-h,r,0,6.2832);x.fill()}}}
   else{const[,lw,al,l0,lr]=cfg;x.strokeStyle='rgba('+rgb+','+al+')';x.lineWidth=lw;x.beginPath();
    for(let i=0;i<cnt;i++){const px=Math.random()*w,py=Math.random()*h,l=l0+Math.random()*lr,dx=l*.1;
     x.moveTo(px,py);x.lineTo(px-dx,py+l);if(py+l>h){x.moveTo(px,py-h);x.lineTo(px-dx,py+l-h)}}
    x.stroke()}
-  $('#'+cfg[0]).style.backgroundImage='url('+c.toDataURL('image/png')+')'})}
+  $('#'+cfg[0]).style.backgroundImage='url('+c.toDataURL('image/png')+')'});
+ startRain()}
 function rebuildRain(){clearTimeout(window._rb);window._rb=setTimeout(doRain,120)}
 function sizeVis(){const d=Math.min(devicePixelRatio||1,1.5);vc.width=vc.clientWidth*d;vc.height=vc.clientHeight*d}
 function resize(){sizeVis();rebuildRain()}
@@ -402,13 +430,8 @@ function loop(ts){
  requestAnimationFrame(loop);
  if(document.hidden)return;
  const eco=S.eco;
- if(S.rain&&!(eco&&window._anim)&&(!eco||ts-lastR>=50)){
-  const dt=Math.min(.1,(ts-lastR)/1000||0);lastR=ts;
-  const sn=S.weather==='snow',sp=(S.rainAmt/60)*(1+(S.react?lvCur*(sn?1.2:2.5):0)),v0=sn?26:380,v1=sn?52:640;
-  rainPos[0]=(rainPos[0]+dt*v0*sp)%rainH;rainPos[1]=(rainPos[1]+dt*v1*sp)%rainH;
-  const sx0=sn?Math.sin(ts/1900)*18:0,sx1=sn?Math.sin(ts/1400+1)*28:0;
-  rl1.style.transform='translate3d('+sx0+'px,'+(rainPos[0]-rainH)+'px,0)';rl2.style.transform='translate3d('+sx1+'px,'+(rainPos[1]-rainH)+'px,0)'}
- if(ts-lastF<(eco?50:33)||(eco&&window._anim))return;lastF=ts;
+ if(S.rain&&ts-lastR>=(eco?250:100)){lastR=ts;const r=rateNow();if(Math.abs(r-lastRate)>.03){lastRate=r;rA.forEach(a=>{if(a)a.playbackRate=r})}}
+ if(ts<window._busyUntil||ts-lastF<(eco?50:33))return;lastF=ts;
  fx();
  const fpv=!$('#fp').hidden&&S.vis&&vc.width>0,pl=an&&!au.paused;
  let lv=0;
@@ -438,7 +461,11 @@ function fx(){if(document.hidden&&duck<1)duck=1;if(!gn)return;const L=S.xfLen,d=
  gn.gain.value=(S.xf&&d&&!au.paused?Math.max(0,Math.min(1,(d-c)/L,c/L)):1)*duck}
 function initAudio(){if(ac)return;try{ac=new(window.AudioContext||window.webkitAudioContext)();an=ac.createAnalyser();an.fftSize=128;fd=new Uint8Array(an.frequencyBinCount);
  const s=ac.createMediaElementSource(au);gn=ac.createGain();s.connect(gn);let pn=gn;eqF=[60,230,910,3600,14000].map((fr,i)=>{const f=ac.createBiquadFilter();f.type=i==0?'lowshelf':i==4?'highshelf':'peaking';f.frequency.value=fr;f.Q.value=1;pn.connect(f);pn=f;return f});pn.connect(an);an.connect(ac.destination);applyEq()}catch(_){an=null}}
-function thumb(el,t){el.style.backgroundImage=t.cover?'url('+t.cover+')':'';el.innerHTML=t.cover?'':ic('music')}
+function thumb(el,t){
+ if(t.cover&&el.id==='cov'){const im=new Image();im.src=t.cover;
+  const set=()=>{if(curT&&curT.cover===t.cover){el.style.backgroundImage='url('+t.cover+')';el.innerHTML=''}};
+  if(im.decode)im.decode().then(set,set);else im.onload=set;return}
+ el.style.backgroundImage=t.cover?'url('+t.cover+')':'';el.innerHTML=t.cover?'':ic('music')}
 function miniNb(){const n=q.length,ok=n>1&&qi>=0;
  for(const[k,t]of[[0,ok?q[(qi-1+n)%n]:null],[2,peekNext()]]){
   $('#mt'+k).textContent=t?t.name:'';$('#ma'+k).textContent=t?(t.artist||'Неизвестный исполнитель'):'';
@@ -451,7 +478,7 @@ function info(){const t=curT;favUi();miniNb();setTimeout(bgu,0);
  thumb($('#cov'),t||{});
  if('mediaSession'in navigator&&t&&S.lock)navigator.mediaSession.metadata=new MediaMetadata({title:t.name,artist:t.artist||'Rainy: Audio player',artwork:t.cover?[{src:t.cover,sizes:'300x300',type:'image/jpeg'}]:[]})}
 async function play(t,list,fq){
- if(list)q=list;if(!fq)qi=q.indexOf(t);curT=t;t.plays=(t.plays||0)+1;t._fb=false;pushHist(t);
+ if(list)q=list;if(!fq)qi=q.indexOf(t);curT=t;t.plays=(t.plays||0)+1;t._fb=false;busy(650);setTimeout(()=>pushHist(t),450);
  clearTimeout(window._sv);window._sv=setTimeout(()=>saveT(t),2000);
  info();markOn();
  const tok=++seekTok,F=S.fadeMs;uiHold=false;seekTgt=null;
@@ -461,7 +488,7 @@ async function play(t,list,fq){
  initAudio();duck=document.hidden?1:0;fx();
  try{if(ac)await ac.resume();await au.play()}catch(_){}
  if(tok===seekTok)fadeDuck(1,F);
- if(t.dev&&t.cq!==9&&t.cq!==2&&t.cq!==-1)hq(t)}
+ if(t.dev&&t.cq!==9&&t.cq!==2&&t.cq!==-1)setTimeout(()=>hq(t),900)}
 async function fb(t){if(t._fb||!t.dev||curT!==t)return;t._fb=true;const pos=au.currentTime||0;
  try{const bl=await(await fetch(Capacitor.convertFileSrc(t.uri))).blob();if(curT!==t)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(bl);au.src=url;
@@ -509,9 +536,9 @@ const itm=(i,t,f)=>{const x=document.createElement('button');x.className='it';x.
 let lastSg;
 const S={rain:true,weather:'rain',rainAmt:60,rainN:90,histOrder:'new',react:true,vis:true,sort:'added',top:20,eqOn:true,eq:[0,0,0,0,0],speedOn:false,speed:1,seekStep:5,fadeMs:350,auto:true,minDur:30,eco:false,lang:(navigator.language||'').toLowerCase().startsWith('ru')?'ru':'en',cust:{bg:'#0b0714',ac:'#a855f7',ac2:'#6d28d9'},wpDim:60,wpBlur:6,resume:true,wake:true,mix:false,xf:false,xfLen:4,unplug:true,lock:true};
 try{Object.assign(S,JSON.parse(LS.g('set')||'{}'))}catch(_){}
-S.minDur=Math.max(1,Math.floor(+S.minDur)||30);S.speed=Math.min(3,Math.max(.3,+S.speed||1));S.seekStep=S.seekStep===10?10:5;S.fadeMs=Math.min(3000,Math.max(100,+S.fadeMs||350));S.rainN=Math.min(150,Math.max(10,Math.round(+S.rainN)||90));S.histOrder=S.histOrder==='old'?'old':'new';S.weather=S.weather==='snow'?'snow':'rain';if(!['dateNew','dateOld','name','artist'].includes(S.sort))S.sort='dateNew';
+S.minDur=Math.max(1,Math.floor(+S.minDur)||30);S.speed=Math.min(3,Math.max(.3,+S.speed||1));S.seekStep=S.seekStep===10?10:5;S.fadeMs=Math.min(3000,Math.max(100,+S.fadeMs||350));S.rainN=Math.min(150,Math.max(10,Math.round(+S.rainN)||90));S.histOrder=S.histOrder==='old'?'old':'new';S.weather=['snow','stars'].includes(S.weather)?S.weather:'rain';if(!['dateNew','dateOld','name','artist'].includes(S.sort))S.sort='dateNew';
 const saveS=()=>LS.s('set',JSON.stringify(S));
-const applyS=()=>{$('#rain').style.display=S.rain?'':'none';document.body.classList.toggle('eco',!!S.eco);$('#vis').hidden=!S.vis;try{if(navigator.audioSession)navigator.audioSession.type=S.mix?'ambient':'auto'}catch(_){}};
+const applyS=()=>{$('#rain').style.display=S.rain?'':'none';document.body.classList.toggle('stars',!!S.rain&&S.weather==='stars');if(!!S.rain!==window._rainOn){window._rainOn=!!S.rain;startRain()}document.body.classList.toggle('eco',!!S.eco);$('#vis').hidden=!S.vis;try{if(navigator.audioSession)navigator.audioSession.type=S.mix?'ambient':'auto'}catch(_){}};
 let wl;async function wake(on){try{const B=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Bg;if(B){B.awake({on:!!(on&&S.wake)});return}if(on&&S.wake&&navigator.wakeLock)wl=await navigator.wakeLock.request('screen');else if(wl){await wl.release();wl=null}}catch(_){}}
 function sortBy(a,m){const b=[...a],c=f=>b.sort((x,y)=>f(x).localeCompare(f(y)));
  return m==='name'?c(t=>t.name):m==='artist'?c(t=>t.artist||'\uffff'):m==='dateOld'?b.sort((x,y)=>(x.added||0)-(y.added||0)):b.sort((x,y)=>(y.added||0)-(x.added||0))}
@@ -736,7 +763,7 @@ function openSet(which,back){
   im.src=URL.createObjectURL(f)};
  wc.append(pk,btn('Убрать',()=>{try{localStorage.removeItem('wp')}catch(_){}applyWp()}));
  row('Обои',wc);row('Затемнение обоев',rg('wpDim',0,90,applyWp));row('Размытие обоев',rg('wpBlur',0,24,applyWp));
- row('Погодный эффект',seg([['rain','Дождь'],['snow','Снег']],()=>S.weather,v=>{S.weather=v;saveS();rebuildRain()}));
+ row('Погодный эффект',seg([['rain','Дождь'],['snow','Снег'],['stars','Звездопад']],()=>S.weather,v=>{S.weather=v;saveS();rebuildRain();applyS()}));
  row('Показывать эффект',tog('rain',applyS));
  row('Количество частиц',rg('rainN',10,150,rebuildRain));
  row('Скорость падения',rg('rainAmt',10,160),'У снега скорость в несколько раз ниже, чем у дождя');
@@ -814,7 +841,7 @@ try{const P=window.Capacitor&&Capacitor.Plugins;if(P){
 {let n0=0;const cnt=async()=>{try{return(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audiooutput').length}catch(_){return 0}};
  try{cnt().then(n=>n0=n);navigator.mediaDevices.addEventListener('devicechange',async()=>{const n=await cnt();if(n<n0&&S.unplug&&!au.paused)au.pause();n0=n})}catch(_){}}
 const ovl=$('#ov'),bx=$('#bx');
-function go(d){const was=!ovl.hidden;bx.dataset.d=d;ovl.classList.toggle('re',was);bx.scrollTop=0}
+function go(d){busy(520);const was=!ovl.hidden;bx.dataset.d=d;ovl.classList.toggle('re',was);bx.scrollTop=0}
 function closeM(){ovl.hidden=true;ovl.classList.remove('re');bx.innerHTML='';if(pickOpen){pickOpen=false;render()}}
 ovl.onclick=e=>{if(e.target===ovl)closeM()};
 function sheet(title,items,back){go('r');bx.innerHTML='<h3></h3>';bx.firstChild.textContent=title;
@@ -1014,7 +1041,7 @@ function rowEl(t,list,pid){
    ['Скрыть трек',()=>hideT(t),'eyeoff'],
    ...(t.dev?(window._sdk>=30?[['Удалить с устройства',()=>delDev(t),'trash']]:[]):[['Удалить песню',()=>delT(t),'trash']])])};
  return d}
-function setFp(v){const f=$('#fp');wake(v);
+function setFp(v){const f=$('#fp');wake(v);busy(700);
  if(v){f.hidden=false;f.classList.remove('out','ready');sizeVis();
   setTimeout(()=>{if(!f.hidden&&!f.classList.contains('out')){f.classList.add('ready');$('#app').style.visibility='hidden'}},520)}
  else if(!f.hidden&&!f.classList.contains('out')){$('#app').style.visibility='';f.classList.remove('ready');f.classList.add('out');
@@ -1199,6 +1226,7 @@ const DICT=new Map(`Песни|Songs
 У снега скорость в несколько раз ниже, чем у дождя|Snow falls several times slower than rain
 Эффект слышит музыку|Effect reacts to music
 Снег|Snow
+Звездопад|Meteor shower
 История прослушивания|Play history
 Порядок истории|History order
 Новые сверху|Newest first
