@@ -27,6 +27,7 @@ jobs:
           import json
           c=json.load(open('capacitor.config.json'))
           c['android']={'backgroundColor':'#0b0714'}
+          c['plugins']={'CapacitorHttp':{'enabled':True}}
           json.dump(c,open('capacitor.config.json','w'),indent=2)
           PY
           npx cap add android
@@ -159,7 +160,7 @@ jobs:
               try {
                 JSArray arr = new JSArray();
                 Uri u = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-                String[] pr = {MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATE_ADDED};
+                String[] pr = {MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATE_ADDED, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, Build.VERSION.SDK_INT >= 29 ? MediaStore.Audio.Media.RELATIVE_PATH : MediaStore.Audio.Media.DATA};
                 String sel = MediaStore.Audio.Media.IS_RINGTONE + "=0 AND " + MediaStore.Audio.Media.IS_NOTIFICATION + "=0 AND " + MediaStore.Audio.Media.IS_ALARM + "=0";
                 if (Build.VERSION.SDK_INT >= 29) {
                   String rp = MediaStore.Audio.Media.RELATIVE_PATH;
@@ -178,6 +179,12 @@ jobs:
                     o.put("dur", cu.getLong(3));
                     o.put("file", cu.getString(4));
                     o.put("added", cu.getLong(5));
+                    String al = cu.getString(6);
+                    o.put("album", "<unknown>".equals(al) || al == null ? "" : al);
+                    o.put("alb", cu.getLong(7));
+                    String rp = cu.getString(8);
+                    if (Build.VERSION.SDK_INT < 29 && rp != null) { int k = rp.lastIndexOf('/'); rp = k > 0 ? rp.substring(0, k) : rp; }
+                    o.put("rel", rp == null ? "" : rp);
                     arr.put(o);
                   }
                   cu.close();
@@ -194,35 +201,51 @@ jobs:
                 call.resolve(r);
               } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
             }
+            private Bitmap sq(Bitmap bm, int size) {
+              if (bm == null) return null;
+              int m = Math.min(bm.getWidth(), bm.getHeight());
+              Bitmap c = Bitmap.createBitmap(bm, (bm.getWidth() - m) / 2, (bm.getHeight() - m) / 2, m, m);
+              int t = Math.min(size, m);
+              return Bitmap.createScaledBitmap(c, t, t, true);
+            }
+            private Bitmap decodeSized(byte[] b, int size) {
+              android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+              o.inJustDecodeBounds = true;
+              BitmapFactory.decodeByteArray(b, 0, b.length, o);
+              int s = 1;
+              if (o.outWidth > 0) while (o.outWidth / (s * 2) >= size && o.outHeight / (s * 2) >= size) s *= 2;
+              o = new android.graphics.BitmapFactory.Options();
+              o.inSampleSize = s;
+              return BitmapFactory.decodeByteArray(b, 0, b.length, o);
+            }
             @PluginMethod public void art(PluginCall call) {
               JSObject res = new JSObject();
               res.put("data", "");
+              int size = call.getInt("size", 160);
+              Uri uri = Uri.parse(call.getString("uri", ""));
+              Bitmap bm = null;
               MediaMetadataRetriever r = new MediaMetadataRetriever();
+              try { r.setDataSource(getContext(), uri); byte[] b = r.getEmbeddedPicture(); if (b != null) bm = decodeSized(b, size); } catch (Exception e) {}
+              try { r.release(); } catch (Exception e) {}
+              if (bm == null && Build.VERSION.SDK_INT >= 29) {
+                try { bm = getContext().getContentResolver().loadThumbnail(uri, new android.util.Size(size, size), null); } catch (Exception e) {}
+              }
+              long alb = (long) (double) call.getDouble("alb", 0.0);
+              if (bm == null && alb > 0) {
+                try {
+                  Uri au = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), alb);
+                  java.io.InputStream in = getContext().getContentResolver().openInputStream(au);
+                  if (in != null) { bm = BitmapFactory.decodeStream(in); in.close(); }
+                } catch (Exception e) {}
+              }
               try {
-                int size = call.getInt("size", 160);
-                r.setDataSource(getContext(), Uri.parse(call.getString("uri", "")));
-                byte[] b = r.getEmbeddedPicture();
-                if (b != null) {
-                  android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
-                  o.inJustDecodeBounds = true;
-                  BitmapFactory.decodeByteArray(b, 0, b.length, o);
-                  int s = 1;
-                  while (o.outWidth / (s * 2) >= size && o.outHeight / (s * 2) >= size) s *= 2;
-                  o = new android.graphics.BitmapFactory.Options();
-                  o.inSampleSize = s;
-                  Bitmap bm = BitmapFactory.decodeByteArray(b, 0, b.length, o);
-                  if (bm != null) {
-                    int m = Math.min(bm.getWidth(), bm.getHeight());
-                    Bitmap sq = Bitmap.createBitmap(bm, (bm.getWidth() - m) / 2, (bm.getHeight() - m) / 2, m, m);
-                    int t = Math.min(size, m);
-                    Bitmap out = Bitmap.createScaledBitmap(sq, t, t, true);
-                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
-                    out.compress(Bitmap.CompressFormat.JPEG, 78, bo);
-                    res.put("data", Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP));
-                  }
+                Bitmap out = sq(bm, size);
+                if (out != null) {
+                  ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                  out.compress(Bitmap.CompressFormat.JPEG, 80, bo);
+                  res.put("data", Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP));
                 }
               } catch (Exception e) {}
-              try { r.release(); } catch (Exception e) {}
               call.resolve(res);
             }
             @PluginMethod public void remove(PluginCall call) {
