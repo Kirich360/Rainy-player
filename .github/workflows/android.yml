@@ -81,6 +81,7 @@ jobs:
               registerPlugin(BgPlugin.class);
               super.onCreate(b);
               getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+              if (android.os.Build.VERSION.SDK_INT >= 26) getBridge().getWebView().setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false);
             }
             @Override public void onPause() {
               super.onPause();
