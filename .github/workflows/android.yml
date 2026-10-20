@@ -70,6 +70,7 @@ jobs:
           cat > $D/MainActivity.java <<'EOF'
           package com.rainy.player;
           import android.os.Bundle;
+          import android.content.Intent;
           import androidx.activity.result.ActivityResultLauncher;
           import androidx.activity.result.IntentSenderRequest;
           import androidx.activity.result.contract.ActivityResultContracts;
@@ -82,6 +83,21 @@ jobs:
               super.onCreate(b);
               getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
               if (android.os.Build.VERSION.SDK_INT >= 26) getBridge().getWebView().setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false);
+              PlayerService.ALIVE = true;
+              chk(getIntent());
+            }
+            private void chk(Intent i) {
+              if (i != null && "rainy.play".equals(i.getAction())) PlayerService.AUTOPLAY = true;
+            }
+            @Override public void onNewIntent(Intent i) {
+              super.onNewIntent(i);
+              chk(i);
+            }
+            @Override public void onDestroy() {
+              PlayerService.ALIVE = false;
+              PlayerService.P = false;
+              PlayerService.push();
+              super.onDestroy();
             }
             @Override public void onPause() {
               super.onPause();
@@ -300,6 +316,28 @@ jobs:
               PlayerService.push();
               c.resolve();
             }
+            @PluginMethod public void battery(PluginCall call) {
+              try {
+                android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+                String pk = getContext().getPackageName();
+                boolean ign = Build.VERSION.SDK_INT >= 23 && pm.isIgnoringBatteryOptimizations(pk);
+                if (!ign && Boolean.TRUE.equals(call.getBoolean("ask", false))) {
+                  Intent in = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                  in.setData(Uri.parse("package:" + pk));
+                  in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  getContext().startActivity(in);
+                }
+                JSObject r = new JSObject();
+                r.put("ignoring", ign);
+                call.resolve(r);
+              } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
+            }
+            @PluginMethod public void pending(PluginCall call) {
+              JSObject r = new JSObject();
+              r.put("play", PlayerService.AUTOPLAY);
+              PlayerService.AUTOPLAY = false;
+              call.resolve(r);
+            }
             @PluginMethod public void awake(PluginCall call) {
               final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
               getActivity().runOnUiThread(() -> {
@@ -328,6 +366,7 @@ jobs:
             static PlayerService S;
             static String T = "Rainy: Audio player", A = "";
             static boolean P = false, F = false, L = true, EN = false;
+            static boolean ALIVE = false, AUTOPLAY = false;
             static long POS = 0, DUR = 0;
             static float SPD = 1f;
             static Bitmap ART = null, ARTS = null;
@@ -364,7 +403,12 @@ jobs:
               return PendingIntent.getService(this, a.hashCode(), new Intent(this, PlayerService.class).setAction(a), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             }
             private Notification.Action act(String a, int icon, String label) {
-              return new Notification.Action.Builder(Icon.createWithResource(this, icon), label, svc(a)).build();
+              PendingIntent pi = svc(a);
+              if (!ALIVE && a.equals("toggle")) {
+                Intent o = new Intent(this, MainActivity.class).setAction("rainy.play").setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                pi = PendingIntent.getActivity(this, 7, o, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+              return new Notification.Action.Builder(Icon.createWithResource(this, icon), label, pi).build();
             }
             private Notification build(long pos) {
               boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -430,7 +474,7 @@ jobs:
               apply();
               return START_STICKY;
             }
-            @Override public void onTaskRemoved(Intent i) { stopSelf(); }
+            @Override public void onTaskRemoved(Intent i) { if (!P && DUR <= 0) stopSelf(); }
             @Override public void onDestroy() {
               hd.removeCallbacks(tk);
               if (wl != null && wl.isHeld()) wl.release();
@@ -443,7 +487,7 @@ jobs:
           python3 - <<'PY'
           p='android/app/src/main/AndroidManifest.xml'
           s=open(p).read()
-          perm=''.join('<uses-permission android:name="android.permission.%s"/>\n'%n for n in ['FOREGROUND_SERVICE','FOREGROUND_SERVICE_MEDIA_PLAYBACK','POST_NOTIFICATIONS','WAKE_LOCK','READ_MEDIA_AUDIO','READ_EXTERNAL_STORAGE'])
+          perm=''.join('<uses-permission android:name="android.permission.%s"/>\n'%n for n in ['FOREGROUND_SERVICE','FOREGROUND_SERVICE_MEDIA_PLAYBACK','POST_NOTIFICATIONS','WAKE_LOCK','READ_MEDIA_AUDIO','READ_EXTERNAL_STORAGE','REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'])
           s=s.replace('</manifest>',perm+'</manifest>')
           s=s.replace('</application>','<service android:name=".PlayerService" android:foregroundServiceType="mediaPlayback" android:exported="false"/>\n</application>')
           open(p,'w').write(s)
