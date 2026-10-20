@@ -370,6 +370,7 @@ jobs:
             static Bitmap ART = null, ARTS = null;
             private PowerManager.WakeLock wl;
             private MediaSession ms;
+            private android.media.MediaPlayer silent;
             private long stamp = 0;
             private final Handler hd = new Handler(Looper.getMainLooper());
             private final Runnable tk = new Runnable() {
@@ -384,6 +385,7 @@ jobs:
             @Override public void onCreate() {
               super.onCreate();
               S = this;
+              // START_STICKY уже возвращается из onStartCommand: если систему всё же убьют сервис, он перезапустится
               ms = new MediaSession(this, "Rainy");
               ms.setCallback(new MediaSession.Callback() {
                 @Override public void onPlay() { BgPlugin.emit("play", 0); }
@@ -447,6 +449,32 @@ jobs:
               long pos = POS + (P ? (long) ((SystemClock.elapsedRealtime() - stamp) * SPD) : 0);
               getSystemService(NotificationManager.class).notify(1, build(pos));
             }
+            private void silence(boolean on) {
+              if (on) {
+                if (silent == null) {
+                  try {
+                    // 1 секунда настоящей тишины: PCM 16 бит, моно, 44100 Гц
+                    int n = 44100 * 2;
+                    java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocate(44 + n).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+                    bb.put("RIFF".getBytes()).putInt(36 + n).put("WAVE".getBytes()).put("fmt ".getBytes())
+                      .putInt(16).putShort((short) 1).putShort((short) 1).putInt(44100).putInt(88200)
+                      .putShort((short) 2).putShort((short) 16).put("data".getBytes()).putInt(n);
+                    java.io.File f = new java.io.File(getCacheDir(), "silence.wav");
+                    if (!f.exists() || f.length() != 44 + n) { java.io.FileOutputStream fos = new java.io.FileOutputStream(f); fos.write(bb.array()); fos.close(); }
+                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                    mp.setAudioAttributes(new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
+                    mp.setDataSource(f.getAbsolutePath());
+                    mp.setLooping(true);
+                    mp.setVolume(0f, 0f);
+                    mp.prepare();
+                    silent = mp;
+                  } catch (Exception e) { silent = null; }
+                }
+                if (silent != null) { try { if (!silent.isPlaying()) silent.start(); } catch (Exception e) {} }
+              } else if (silent != null) {
+                try { if (silent.isPlaying()) silent.pause(); } catch (Exception e) {}
+              }
+            }
             void apply() {
               try {
                 MediaMetadata.Builder m = new MediaMetadata.Builder()
@@ -464,6 +492,7 @@ jobs:
                 if (!wl.isHeld()) wl.acquire();
                 hd.removeCallbacks(tk);
                 if (P) hd.postDelayed(tk, 1000);
+                silence(!P); // пауза -> играем тишину, чтобы Android не убил сервис
               } catch (Exception e) {}
             }
             @Override public int onStartCommand(Intent i, int f, int id) {
@@ -476,6 +505,7 @@ jobs:
             @Override public void onDestroy() {
               hd.removeCallbacks(tk);
               if (wl != null && wl.isHeld()) wl.release();
+              if (silent != null) { try { silent.release(); } catch (Exception e) {} silent = null; }
               ms.release();
               S = null;
               super.onDestroy();
