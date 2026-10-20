@@ -388,8 +388,9 @@ jobs:
               // START_STICKY уже возвращается из onStartCommand: если систему всё же убьют сервис, он перезапустится
               ms = new MediaSession(this, "Rainy");
               ms.setCallback(new MediaSession.Callback() {
-                @Override public void onPlay() { BgPlugin.emit("play", 0); }
-                @Override public void onPause() { BgPlugin.emit("pause", 0); }
+                // Сессия всегда PLAYING, поэтому системные кнопки шлют onPause даже на реальной паузе: переключаем по факту
+                @Override public void onPlay() { if (!P) BgPlugin.emit("toggle", 0); }
+                @Override public void onPause() { BgPlugin.emit("toggle", 0); }
                 @Override public void onSkipToNext() { BgPlugin.emit("next", 0); }
                 @Override public void onSkipToPrevious() { BgPlugin.emit("prev", 0); }
                 @Override public void onSeekTo(long p) { BgPlugin.emit("seek", p); }
@@ -484,7 +485,7 @@ jobs:
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
                   .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off).build())
-                  .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build());
+                  .setState(PlaybackState.STATE_PLAYING, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build()); // всегда PLAYING; скорость 0 на паузе, чтобы прогресс стоял
                 stamp = SystemClock.elapsedRealtime();
                 Notification n = build(POS);
                 if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
