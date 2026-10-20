@@ -526,7 +526,7 @@ const saveT=async t=>{try{await rq(st('readwrite').put(t))}catch(_){}};
 function favUi(){const f=!!(curT&&curT.fav);for(const b of[$('#fav'),$('#mfav')]){b.innerHTML=ic(f?'heartf':'heart');b.classList.toggle('y',f)}}
 function favRows(){document.querySelectorAll('.lst .row').forEach(d=>{const f=d._t&&d.querySelector('.f');if(f){f.innerHTML=ic(d._t.fav?'heartf':'heart');f.classList.toggle('y',!!d._t.fav)}})}
 let bgOn=false,lastT=null,lastCov='';
-function bg(on){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B)return;if(on){if(!bgOn){B.start({});bgOn=true}bgu()}else{B.stop();bgOn=false}}catch(_){}}
+function bg(on){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B)return;if(on){B.start({});bgOn=true;if(LS.g('bgask')!=='1'){LS.s('bgask','1');setTimeout(()=>{try{B.battery({ask:true})}catch(_){}},1200)}bgu()}else{B.stop();bgOn=false}}catch(_){}}
 function bgu(){try{const P=window.Capacitor&&Capacitor.Plugins,B=P&&P.Bg;if(!B||!bgOn)return;const t=curT,cv=t&&t.cover||'';
  const o={title:t?t.name:'Rainy: Audio player',artist:t&&t.artist||'',playing:!au.paused&&!au.ended,pos:Math.round((au.currentTime||0)*1000),dur:Math.round((isFinite(au.duration)?au.duration:0)*1000),fav:!!(t&&t.fav),lock:S.lock,lang:S.lang,spd:au.playbackRate};
  if(t!==lastT||cv!==lastCov){o.cover=cv?cv.split(',')[1]:'';lastT=t;lastCov=cv}
@@ -723,6 +723,14 @@ function openThemePop(a){
   b.firstChild.style.background='linear-gradient(135deg,'+c1+','+c2+')';b.lastChild.textContent=n;
   b.onclick=()=>{ti=i;applyTheme();[...box.children].forEach((x,k)=>x.classList.toggle('on',k===i))};box.append(b)})}
 function skIc(c){return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(c?'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>')+'<text x="12" y="15.4" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none">'+S.seekStep+'</text></svg>'}
+async function openBgSet(){go('r');
+ let ign=null;try{ign=(await Capacitor.Plugins.Bg.battery({})).ignoring}catch(_){}
+ bx.innerHTML='<h3>Работа в фоне</h3><p class="note"></p><button class="pr"></button><button class="gh">Готово</button>';
+ const nt=bx.querySelector('.note'),bt=bx.querySelectorAll('button');
+ nt.textContent=ign?'Ограничения батареи сняты. Если музыка всё равно пропадает из шторки, включи автозапуск и режим «Без ограничений» для Rainy в настройках телефона (Приложения → Rainy → Батарея).':'Телефон может закрывать плеер через несколько минут паузы. Разреши работу в фоне, чтобы музыка не пропадала из шторки.';
+ bt[0].hidden=!!ign;bt[0].textContent='Разрешить работу в фоне';
+ bt[0].onclick=async()=>{try{await Capacitor.Plugins.Bg.battery({ask:true})}catch(_){}closeM()};
+ bt[1].onclick=closeM;ovl.hidden=false}
 function openDbg(){go('r');bx.innerHTML='<h3>Журнал плеера</h3><textarea id="dl" readonly></textarea><button class="gh">Очистить</button><button class="pr">Готово</button>';
  const ta=bx.querySelector('#dl'),bt=bx.querySelectorAll('button');ta.value=dbgL.join('\n')||'Пока пусто';ta.scrollTop=1e9;
  bt[0].onclick=()=>{dbgL.length=0;LS.s('dbg','[]');ta.value='Пока пусто'};bt[1].onclick=closeM;ovl.hidden=false}
@@ -1036,7 +1044,7 @@ function openSet(which,back){
  const mb=(i,t,f)=>{const x=document.createElement('button');x.className='it';x.innerHTML=ic(i)+'<span></span>';x.lastChild.textContent=t;x.onclick=()=>f();return x};
  bx.innerHTML='<h3></h3>';
  if(!which){bx.firstChild.textContent='Настройки';
-  bx.append(mb('globe','Язык / Language',()=>openSet('Язык')),mb('palette','Оформление',()=>openSet('Оформление')),mb('play','Воспроизведение',()=>openSet('Воспроизведение')),mb('music','Библиотека',()=>openSet('Библиотека')),mb('eq','Эквалайзер',()=>openEq('menu')),mb('download','Резервная копия и перенос',openBackup),mb('queue','Журнал плеера',openDbg));const vv=mk('note');vv.style.textAlign='center';vv.textContent='Версия 1.4.1';bx.append(vv)}
+  bx.append(mb('globe','Язык / Language',()=>openSet('Язык')),mb('palette','Оформление',()=>openSet('Оформление')),mb('play','Воспроизведение',()=>openSet('Воспроизведение')),mb('music','Библиотека',()=>openSet('Библиотека')),mb('eq','Эквалайзер',()=>openEq('menu')),mb('download','Резервная копия и перенос',openBackup),mb('sliders','Работа в фоне',openBgSet),mb('queue','Журнал плеера',openDbg));const vv=mk('note');vv.style.textAlign='center';vv.textContent='Версия 1.4.1';bx.append(vv)}
  else{bx.firstChild.textContent=which;bx.append(secs[which]);bx.append(mk('sep'));bx.append(itm('back','Назад',()=>openSet()))}
  const c=btn('Готово',closeM);c.className='pr';bx.append(c);ovl.hidden=false}
 
@@ -1615,6 +1623,7 @@ document.documentElement.lang=S.lang;if(S.lang==='en')trNode(document.body);
   if(t){curT=t;q=sorted();qi=q.indexOf(t);if(t.blob){url=URL.createObjectURL(t.blob);au.src=url}else au.src=Capacitor.convertFileSrc(t.uri);
    const ldm=au.onloadedmetadata;au.onloadedmetadata=()=>{ldm();au.currentTime=l.pos||0;au.onloadedmetadata=ldm}}}catch(_){}}
  info();render();
+ try{const B=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Bg;if(B&&B.pending){B.pending({}).then(r=>{if(r&&r.play&&curT)setTimeout(()=>resumePlay('notif'),500)}).catch(()=>{})}}catch(_){}
  $('#wstart').onclick=()=>{LS.s('welcome','1');const w=$('#wel');w.classList.add('out');setTimeout(()=>{w.hidden=true;w.classList.remove('out')},350);syncLib(true)};
  if(tracks.length&&LS.g('welcome')!=='1')LS.s('welcome','1');
  if(LS.g('welcome')==='1')syncLib();else $('#wel').hidden=false})();
