@@ -95,6 +95,8 @@ jobs:
             }
             @Override public void onDestroy() {
               PlayerService.ALIVE = false;
+              PlayerService.P = false;
+              PlayerService.push();
               super.onDestroy();
             }
             @Override public void onPause() {
@@ -370,7 +372,6 @@ jobs:
             static Bitmap ART = null, ARTS = null;
             private PowerManager.WakeLock wl;
             private MediaSession ms;
-            private android.media.MediaPlayer silent;
             private long stamp = 0;
             private final Handler hd = new Handler(Looper.getMainLooper());
             private final Runnable tk = new Runnable() {
@@ -385,12 +386,10 @@ jobs:
             @Override public void onCreate() {
               super.onCreate();
               S = this;
-              // START_STICKY уже возвращается из onStartCommand: если систему всё же убьют сервис, он перезапустится
               ms = new MediaSession(this, "Rainy");
               ms.setCallback(new MediaSession.Callback() {
-                // Сессия всегда PLAYING, поэтому системные кнопки шлют onPause даже на реальной паузе: переключаем по факту
-                @Override public void onPlay() { if (!P) BgPlugin.emit("toggle", 0); }
-                @Override public void onPause() { BgPlugin.emit("toggle", 0); }
+                @Override public void onPlay() { BgPlugin.emit("play", 0); }
+                @Override public void onPause() { BgPlugin.emit("pause", 0); }
                 @Override public void onSkipToNext() { BgPlugin.emit("next", 0); }
                 @Override public void onSkipToPrevious() { BgPlugin.emit("prev", 0); }
                 @Override public void onSeekTo(long p) { BgPlugin.emit("seek", p); }
@@ -443,38 +442,11 @@ jobs:
                .setStyle(new Notification.DecoratedMediaCustomViewStyle().setMediaSession(ms.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
               if (DUR > 0) b.setSubText(sub);
               if (ARTS != null) b.setLargeIcon(ARTS);
-              if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
               return b.build();
             }
             private void upd() {
               long pos = POS + (P ? (long) ((SystemClock.elapsedRealtime() - stamp) * SPD) : 0);
               getSystemService(NotificationManager.class).notify(1, build(pos));
-            }
-            private void silence(boolean on) {
-              if (on) {
-                if (silent == null) {
-                  try {
-                    // 1 секунда настоящей тишины: PCM 16 бит, моно, 44100 Гц
-                    int n = 44100 * 2;
-                    java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocate(44 + n).order(java.nio.ByteOrder.LITTLE_ENDIAN);
-                    bb.put("RIFF".getBytes()).putInt(36 + n).put("WAVE".getBytes()).put("fmt ".getBytes())
-                      .putInt(16).putShort((short) 1).putShort((short) 1).putInt(44100).putInt(88200)
-                      .putShort((short) 2).putShort((short) 16).put("data".getBytes()).putInt(n);
-                    java.io.File f = new java.io.File(getCacheDir(), "silence.wav");
-                    if (!f.exists() || f.length() != 44 + n) { java.io.FileOutputStream fos = new java.io.FileOutputStream(f); fos.write(bb.array()); fos.close(); }
-                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
-                    mp.setAudioAttributes(new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
-                    mp.setDataSource(f.getAbsolutePath());
-                    mp.setLooping(true);
-                    mp.setVolume(0f, 0f);
-                    mp.prepare();
-                    silent = mp;
-                  } catch (Exception e) { silent = null; }
-                }
-                if (silent != null) { try { if (!silent.isPlaying()) silent.start(); } catch (Exception e) {} }
-              } else if (silent != null) {
-                try { if (silent.isPlaying()) silent.pause(); } catch (Exception e) {}
-              }
             }
             void apply() {
               try {
@@ -485,15 +457,15 @@ jobs:
                 ms.setPlaybackState(new PlaybackState.Builder()
                   .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
                   .addCustomAction(new PlaybackState.CustomAction.Builder("fav", F ? (EN ? "Remove from favorites" : "Убрать из избранного") : (EN ? "Add to favorites" : "В избранное"), F ? R.drawable.ic_heart_on : R.drawable.ic_heart_off).build())
-                  .setState(PlaybackState.STATE_PLAYING, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build()); // всегда PLAYING; скорость 0 на паузе, чтобы прогресс стоял
+                  .setState(P ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, POS, P ? SPD : 0f, SystemClock.elapsedRealtime()).build());
                 stamp = SystemClock.elapsedRealtime();
                 Notification n = build(POS);
                 if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
                 if (wl == null) wl = ((PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rainy:play");
-                if (!wl.isHeld()) wl.acquire();
+                if (P && !wl.isHeld()) wl.acquire();
+                if (!P && wl.isHeld()) wl.release();
                 hd.removeCallbacks(tk);
                 if (P) hd.postDelayed(tk, 1000);
-                silence(!P); // пауза -> играем тишину, чтобы Android не убил сервис
               } catch (Exception e) {}
             }
             @Override public int onStartCommand(Intent i, int f, int id) {
@@ -502,11 +474,10 @@ jobs:
               apply();
               return START_STICKY;
             }
-            @Override public void onTaskRemoved(Intent i) { }
+            @Override public void onTaskRemoved(Intent i) { if (!P && DUR <= 0) stopSelf(); }
             @Override public void onDestroy() {
               hd.removeCallbacks(tk);
               if (wl != null && wl.isHeld()) wl.release();
-              if (silent != null) { try { silent.release(); } catch (Exception e) {} silent = null; }
               ms.release();
               S = null;
               super.onDestroy();
@@ -518,7 +489,7 @@ jobs:
           s=open(p).read()
           perm=''.join('<uses-permission android:name="android.permission.%s"/>\n'%n for n in ['FOREGROUND_SERVICE','FOREGROUND_SERVICE_MEDIA_PLAYBACK','POST_NOTIFICATIONS','WAKE_LOCK','READ_MEDIA_AUDIO','READ_EXTERNAL_STORAGE','REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'])
           s=s.replace('</manifest>',perm+'</manifest>')
-          s=s.replace('</application>','<service android:name=".PlayerService" android:foregroundServiceType="mediaPlayback" android:exported="false" android:stopWithTask="false"/>\n</application>')
+          s=s.replace('</application>','<service android:name=".PlayerService" android:foregroundServiceType="mediaPlayback" android:exported="false"/>\n</application>')
           open(p,'w').write(s)
           PY
           sed -i 's/minSdkVersion = 22/minSdkVersion = 24/' android/variables.gradle
