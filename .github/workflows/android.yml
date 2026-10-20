@@ -146,6 +146,7 @@ jobs:
               JSObject o = new JSObject();
               o.put("a", a);
               o.put("p", p);
+              o.put("ts", System.currentTimeMillis());
               I.notifyListeners("act", o);
             }
             @Override public void load() {
